@@ -1,0 +1,36 @@
+# CODEOWNERS 模板
+# 填入三位成员的 GitHub 用户名后，取消对应行的注释即可启用。
+# 启用后，PR 会自动请求对应目录 owner 评审。
+# 角色说明见 docs/collaboration.md。
+
+# ---- A / Engine：引擎与框架 ----
+# /game/core/            @engine-lead
+# /game/components/      @engine-lead
+# /tools/build.py        @engine-lead
+# /tests/                @engine-lead
+
+# ---- B / Gameplay：玩法与关卡 ----
+# /game/entities/        @gameplay-lead
+# /game/systems/         @gameplay-lead
+# /game/world/           @gameplay-lead
+# /game/data/weapons.json    @gameplay-lead
+# /game/data/skills.json     @gameplay-lead
+# /game/data/affixes.json    @gameplay-lead
+# /game/data/enemies.json    @gameplay-lead
+# /game/data/biomes.json     @gameplay-lead
+# /game/data/loot_tables.json @gameplay-lead
+# /assets/maps/          @gameplay-lead
+# /tools/validate_data.py @gameplay-lead
+
+# ---- C / Narrative & UI：叙事与界面 ----
+# /game/scenes/          @narrative-lead
+# /game/ui/              @narrative-lead
+# /game/data/story.json  @narrative-lead
+# /game/data/localization/ @narrative-lead
+# /assets/ui/            @narrative-lead
+# /assets/fonts/         @narrative-lead
+
+# ---- 共享契约：变更需三人评审 ----
+# /docs/interfaces.md    @engine-lead @gameplay-lead @narrative-lead
+# /docs/collaboration.md @engine-lead @gameplay-lead @narrative-lead
+# /GAME_DESIGN.md        @engine-lead @gameplay-lead @narrative-lead

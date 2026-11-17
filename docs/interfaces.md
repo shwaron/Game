@@ -1,0 +1,379 @@
+# 《余烬回环》模块接口与数据契约
+
+> 版本：v0.5
+> 更新日期：2026-11-18
+> 相关文档：[分工协作指南](collaboration.md) · [总览与技术](../GAME_DESIGN.md) · [机制](mechanics.md) · [场景](scenes.md) · [剧情](story.md)
+
+本文件是三人协作的**唯一接口依据**。A 提供框架 API，B/C 通过 API、事件与数据契约通信。任何契约变更需三人评审，并同步更新本文件。
+
+---
+
+## 1. 核心 API（A 提供）
+
+以下为设计级签名，实现由 A 负责；B/C 只依赖这些接口，不访问内部实现。
+
+### 1.1 SceneManager
+
+```python
+class Scene:
+    def enter(self) -> None: ...
+    def exit(self) -> None: ...
+    def handle_event(self, event) -> None: ...
+    def update(self, dt: float) -> None: ...
+    def draw(self, surface) -> None: ...
+
+class SceneManager:
+    def push(self, scene: Scene) -> None: ...
+    def pop(self) -> None: ...
+    def replace(self, scene: Scene) -> None: ...
+    @property
+    def current(self) -> Scene: ...
+```
+
+规则：
+
+- 场景之间不直接引用，统一通过 SceneManager 切换。
+- 暂停/设置等覆盖场景用 `push/pop`；标题→祭坛→单局用 `replace`。
+- `dt` 为固定逻辑步长（1/60 秒）。
+
+### 1.2 EventBus
+
+```python
+class EventBus:
+    def subscribe(self, event_name: str, callback) -> None: ...
+    def unsubscribe(self, event_name: str, callback) -> None: ...
+    def publish(self, event_name: str, payload: dict) -> None: ...
+```
+
+规则：
+
+- 事件名格式：`domain.action`，全小写，点分隔。
+- payload 为字典，发布时传副本，禁止跨模块共享可变对象。
+- 跨模块只传 id/数值/文本 key，不直接传实体引用。
+
+### 1.3 AssetManager
+
+```python
+def resource_path(rel: str) -> Path: ...
+def load_image(rel: str) -> Surface: ...
+def load_sound(rel: str) -> Sound: ...
+def load_font(rel: str, size: int) -> Font: ...
+def load_json(rel: str) -> dict: ...
+```
+
+规则：
+
+- 图片加载后 `convert_alpha()`；字体/音效缓存。
+- 资源缺失时抛出明确错误，不静默返回占位。
+- 打包后路径通过 `resource_path` 解析（兼容 PyInstaller）。
+
+### 1.4 InputManager
+
+```python
+def is_action_pressed(action: str) -> bool: ...
+def is_action_just_pressed(action: str) -> bool: ...
+def get_axis(axis: str) -> float: ...
+def rebind(action: str, binding) -> None: ...
+```
+
+标准 action：
+
+```text
+move_left, move_right, jump, dash, attack, offhand,
+skill1, skill2, interact, swap, map, pause
+```
+
+### 1.5 SaveManager
+
+```python
+def load_meta() -> dict: ...
+def save_meta(data: dict) -> None: ...
+def get_save_path() -> Path: ...
+```
+
+meta 结构（schema_version 必填）：
+
+```json
+{
+  "schema_version": 1,
+  "embers": 0,
+  "unlocks": {"weapons": [], "skills": [], "shortcuts": []},
+  "codex": [],
+  "max_heat": 0,
+  "settings": {},
+  "stats": {"deaths": 0, "runs": 0, "best_depth": 0},
+  "story_flags": {},
+  "ending": null
+}
+```
+
+规则：原子写入 + 备份；版本迁移由 A 实现；单局进度不存档。
+
+### 1.6 其他服务
+
+- `Camera`：跟随、死区、边界钳制、震动；B 调用，C 不直接操作。
+- `AudioManager`：`play_sfx(id)`、`play_bgm(id)`、`stop_bgm()`；B/C 通过 id 调用。
+- `Timer`：固定步长累加器；A 内部使用。
+
+---
+
+## 2. 事件契约
+
+| 事件名 | payload | 发布者 | 订阅者 |
+| --- | --- | --- | --- |
+| `player.damaged` | `{amount, source, position}` | B | C（HUD/伤害数字）、A（存档统计） |
+| `player.died` | `{run_id, depth, cause}` | B | A（结算）、C（死亡场景） |
+| `enemy.killed` | `{enemy_id, position, loot_table}` | B | B（掉落）、C（图鉴） |
+| `room.entered` | `{room_id, biome, room_type}` | B | C（小地图/提示） |
+| `loot.picked` | `{item_id, rarity, slot}` | B | C（拾取提示/背包） |
+| `run.ended` | `{outcome, embers, depth}` | B | A（存档）、C（结算 UI） |
+| `boss.phase` | `{boss_id, phase}` | B | C（演出/台词） |
+| `story.flag` | `{key, value}` | B/C | C（剧情/对话） |
+| `ui.notify` | `{text_key, params}` | B/C | C（通知） |
+
+规则：
+
+- 新增事件必须在本表登记，注明 payload 与发布/订阅方。
+- 事件不保证顺序；需要顺序的逻辑用状态机或显式调用。
+- 禁止在事件回调中直接修改其他模块内部状态。
+
+---
+
+## 3. 数据契约（JSON）
+
+通用规则：
+
+- UTF-8 编码，键名 `snake_case`。
+- 显示文本一律用 localization key，不写死中文。
+- 每个数据文件带 `schema_version`。
+- 所有数据表由 `tools/validate_data.py` 校验（B 维护，A/C 评审）。
+
+### 3.1 weapons.json
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | string | 唯一标识 |
+| name_key / desc_key | string | 本地化 key |
+| class | string | sword/dagger/hammer/spear/bow/staff/chakram/shield |
+| base_damage | number | 基础伤害 |
+| attack_speed | number | 攻速倍率 |
+| combo | number[] | 连击倍率 |
+| hitbox | [w, h] | 攻击框 |
+| windup_ms / active_ms / recovery_ms | number | 帧窗口 |
+| knockback | number | 击退 |
+| tags | string[] | melee/ranged/starter 等 |
+
+示例见 [机制文档](mechanics.md) 3.8。
+
+### 3.2 skills.json
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | string | 唯一标识 |
+| name_key / desc_key | string | 本地化 key |
+| type | string | aoe/dash/dot/control/summon/buff |
+| cooldown | number | 秒 |
+| damage | number | 基础伤害（可为 0） |
+| effects | object[] | 附加状态/位移/召唤参数 |
+| rarity | string | common/fine/rare/epic/legendary |
+| tags | string[] | 分类标签 |
+
+### 3.3 affixes.json
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | string | 唯一标识 |
+| name_key | string | 本地化 key |
+| stat | string | damage/attack_speed/crit/lifesteal/burn/freeze/armor_pen 等 |
+| min / max | number | 数值区间 |
+| slots | string[] | weapon/skill/amulet/relic |
+| weight | number | 抽取权重 |
+| unique | bool | 是否独特（传说专属） |
+
+### 3.4 enemies.json
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | string | 唯一标识 |
+| name_key | string | 本地化 key |
+| biome | string | 所属区域 |
+| hp / damage / armor / speed | number | 基础数值 |
+| attacks | object[] | 招式（前摇/判定/后摇/伤害） |
+| elite_affixes | string[] | 可附加精英词缀 |
+| loot_table | string | 掉落表 id |
+| sprite | string | 资源路径 |
+
+### 3.5 biomes.json
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | string | 唯一标识 |
+| name_key | string | 本地化 key |
+| rooms | string[] | 房间地图 id 列表（固定顺序） |
+| entry / exit | string | 入口/出口房间 |
+| boss | string | Boss id |
+| hazards | string[] | 机关类型 |
+| palette | string | 调色板 id |
+| bgm | string | 音乐 id |
+
+### 3.6 loot_tables.json
+
+```json
+{
+  "schema_version": 1,
+  "tables": {
+    "rat_basic": {
+      "entries": [
+        {"item": "fire_seed", "weight": 70},
+        {"item": "weapon_random", "weight": 25, "rarity_weights": {"common": 60, "fine": 25, "rare": 10, "epic": 4.5, "legendary": 0.5}},
+        {"item": "potion", "weight": 5}
+      ],
+      "guarantee": {"after_rooms": 3, "min_rarity": "rare"}
+    }
+  }
+}
+```
+
+### 3.7 story.json
+
+```json
+{
+  "schema_version": 1,
+  "flags": {
+    "met_moth": {"type": "bool", "default": false},
+    "proof_gate": {"type": "bool", "default": false},
+    "death_count": {"type": "int", "default": 0}
+  },
+  "nodes": [
+    {
+      "id": "intro_wake",
+      "type": "dialogue",
+      "text_key": "story.intro_wake",
+      "conditions": {"loop_count": 0},
+      "flags_set": {"met_luyu": true},
+      "next": "tutorial_move"
+    }
+  ]
+}
+```
+
+### 3.8 dialogue.json
+
+```json
+{
+  "schema_version": 1,
+  "dialogues": {
+    "luyu_first": {
+      "speaker": "luyu",
+      "lines": [
+        {"text_key": "dialogue.luyu_first_1", "condition": null},
+        {"text_key": "dialogue.luyu_first_2", "condition": {"death_count_gte": 1}}
+      ]
+    }
+  }
+}
+```
+
+### 3.9 localization
+
+- `game/data/localization/zh_CN.json`、`en.json`：扁平 `key → string`。
+- 缺失 key 回退到 zh_CN，并记录警告。
+- key 命名：`domain.object.field`，如 `weapon.broken_sword.name`。
+
+---
+
+## 4. 关卡数据契约（Tiled）
+
+图层（固定顺序）：
+
+```text
+background, terrain, platform_one_way, hazard, decor, entities, foreground
+```
+
+对象类型：
+
+| 类型 | 用途 | 关键属性 |
+| --- | --- | --- |
+| `player_spawn` | 玩家出生点 | 每图唯一 |
+| `enemy_spawn` | 敌人出生点 | enemy_id, elite(bool) |
+| `boss_spawn` | Boss 出生点 | boss_id |
+| `chest` | 宝箱 | loot_table, locked(bool) |
+| `exit` | 房间出口 | target_room, direction |
+| `door` | 门/闸门 | condition, target_room |
+| `shortcut` | 捷径 | unlock_flag |
+| `event` | 局内事件 | event_id, choices |
+| `npc` | NPC | npc_id, dialogue_id |
+| `checkpoint` | 检查点 | biome |
+
+规则：
+
+- 每张地图必须有 `player_spawn` 与至少一个 `exit`。
+- 房间连接通过 `exit.target_room` 与 `biomes.json` 校验。
+- 对象属性用 Tiled 自定义属性填写，B 维护校验脚本。
+
+---
+
+## 5. UI 状态契约
+
+Run（B）向 UI（C）提供只读状态字典，C 不直接修改玩法状态：
+
+```python
+hud_state = {
+    "hp": int,
+    "max_hp": int,
+    "potions": int,
+    "embers": int,
+    "fire_seeds": int,
+    "skills": [{"id": str, "cooldown": float, "ready": bool}],
+    "weapon": {"id": str, "name_key": str, "rarity": str},
+    "buffs": [{"id": str, "stacks": int}],
+    "room": {"id": str, "biome": str},
+}
+```
+
+背包/装备对比数据结构由 C 定义，B 提供物品实例数据（id、词缀、数值）。
+
+---
+
+## 6. 剧情标记契约
+
+| flag | 类型 | 触发 |
+| --- | --- | --- |
+| `met_luyu` | bool | 序章对话 |
+| `met_scavenger` | bool | 城郊拾荒商 |
+| `met_moth` | bool | 洞窟墨蛾 |
+| `proof_gate` | bool | 击败焚炉门卫 |
+| `proof_memory` | bool | 击败孢子母体 |
+| `proof_time` | bool | 击败钟楼守夜者 |
+| `death_count` | int | 每次死亡 +1 |
+| `loop_count` | int | 每次回环 +1 |
+| `ending_chosen` | string | A/B/C |
+
+对话条件支持：`flag == value`、`death_count_gte`、`loop_count_gte`、`item_owned`。C 负责条件解析，B 负责在玩法节点发布 `story.flag`。
+
+---
+
+## 7. 资源命名与加载
+
+- 命名规范见 [场景文档](scenes.md) 4.3。
+- 资源路径相对 `assets/`，如 `sprites/player_idle_01.png`。
+- A 提供加载与缓存；B/C 按规范提交素材，不自行实现加载逻辑。
+- 第三方素材记录到 `assets/CREDITS.md`。
+
+---
+
+## 8. 契约变更流程
+
+1. 提 Issue 说明变更与影响范围。
+2. 三人评审；破坏性变更需升级 `schema_version` 并提供迁移方案。
+3. 更新本文件与相关数据 schema。
+4. 各 owner 同步修改实现与测试。
+5. 合并后通知全员，避免基于旧契约开发。
+
+---
+
+## 9. 版本记录
+
+| 版本 | 日期 | 变更 |
+| --- | --- | --- |
+| v0.5 | 2026-11-18 | 初版：核心 API、事件、数据、关卡、UI、剧情标记契约 |
