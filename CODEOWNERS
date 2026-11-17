@@ -1,7 +1,6 @@
 # CODEOWNERS
-# A / B 角色已启用；C（叙事与界面）成员加入后，把 @narrative-lead 替换为其 GitHub 用户名并取消注释。
-# 启用后，PR 会自动请求对应目录 owner 评审。
-# 角色说明见 docs/collaboration.md。
+# 三位成员所有权已全部启用。角色说明见 docs/collaboration.md。
+# PR 会自动请求对应目录 owner 评审。
 
 # ---- A / Engine：引擎与框架（shwaron）----
 /game/core/            @shwaron
@@ -22,15 +21,15 @@
 /assets/maps/          @0range03
 /tools/validate_data.py @0range03
 
-# ---- C / Narrative & UI：叙事与界面（待加入）----
-# /game/scenes/          @narrative-lead
-# /game/ui/              @narrative-lead
-# /game/data/story.json  @narrative-lead
-# /game/data/localization/ @narrative-lead
-# /assets/ui/            @narrative-lead
-# /assets/fonts/         @narrative-lead
+# ---- C / Narrative & UI：叙事与界面（shuoyu04）----
+/game/scenes/          @shuoyu04
+/game/ui/              @shuoyu04
+/game/data/story.json  @shuoyu04
+/game/data/localization/ @shuoyu04
+/assets/ui/            @shuoyu04
+/assets/fonts/         @shuoyu04
 
-# ---- 共享契约：变更需三人评审（C 加入后补上其用户名）----
-/docs/interfaces.md    @shwaron @0range03
-/docs/collaboration.md @shwaron @0range03
-/GAME_DESIGN.md        @shwaron @0range03
+# ---- 共享契约：变更需三人评审 ----
+/docs/interfaces.md    @shwaron @0range03 @shuoyu04
+/docs/collaboration.md @shwaron @0range03 @shuoyu04
+/GAME_DESIGN.md        @shwaron @0range03 @shuoyu04
