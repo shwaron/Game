@@ -1,0 +1,7 @@
+pygame-ce==2.5.8
+pytmx==3.32
+opensimplex==0.4.5.1
+numpy==2.5.5
+pillow==13.0.0
+pyinstaller==6.22.3
+pytest==9.2.0
