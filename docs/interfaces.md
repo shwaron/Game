@@ -80,8 +80,10 @@ def rebind(action: str, binding) -> None: ...
 
 ```text
 move_left, move_right, jump, dash, attack, offhand,
-skill1, skill2, interact, swap, map, pause
+skill1, skill2, interact, swap, map, pause, down
 ```
+
+`down`（S / ↓）用于单向平台下穿，M1 新增，待三人评审确认。
 
 ### 1.5 SaveManager
 
