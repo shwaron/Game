@@ -155,3 +155,70 @@ def test_take_hit_applies_iframes_and_knockback():
     assert player.body.vel_y < 0
     assert not player.take_hit(10, (200, 208), 100)
     assert player.health.hp == 90
+
+
+def test_dash_and_parry_spend_stamina():
+    player = Player(100, 208)
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    assert player.stamina.value == config.STAMINA_MAX
+    inp.press("dash")
+    step(player, inp, room)
+    assert player.dash_time > 0
+    assert player.stamina.value == config.STAMINA_MAX - config.DASH_STAMINA_COST
+    step(player, inp, room, 14)
+    inp.press("offhand")
+    step(player, inp, room)
+    assert player.is_parrying
+    expected = config.STAMINA_MAX - config.DASH_STAMINA_COST - config.PARRY_STAMINA_COST
+    assert player.stamina.value <= expected
+    assert player.stamina.value > expected - 3
+
+
+def test_no_dash_when_stamina_insufficient():
+    player = Player(100, 208)
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    player.stamina.value = 5.0
+    inp.press("dash")
+    step(player, inp, room)
+    assert player.dash_time <= 0
+
+
+def test_fall_damage_on_hard_landing():
+    player = Player(100, 0)
+    inp = FakeInput()
+    room = make_room()
+    for _ in range(120):
+        step(player, inp, room)
+        if player.body.on_ground:
+            break
+    assert player.body.on_ground
+    assert player.health.hp < player.health.max_hp
+
+
+def test_normal_jump_landing_has_no_fall_damage():
+    player = Player(100, 208)
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    inp.press("jump")
+    step(player, inp, room)
+    for _ in range(90):
+        step(player, inp, room)
+        if player.body.on_ground:
+            break
+    assert player.body.on_ground
+    assert player.health.hp == player.health.max_hp
+
+
+def test_poison_dot_accumulates_fractional_damage():
+    player = Player(100, 208)
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    player.status.apply("poison", 2.0, 4.0, max_stacks=1)
+    step(player, inp, room, 60)
+    assert player.health.hp < player.health.max_hp

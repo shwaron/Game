@@ -1,6 +1,6 @@
 # 《余烬回环》模块接口与数据契约
 
-> 版本：v0.5
+> 版本：v0.6
 > 更新日期：2026-11-18
 > 相关文档：[分工协作指南](collaboration.md) · [总览与技术](../GAME_DESIGN.md) · [机制](mechanics.md) · [场景](scenes.md) · [剧情](story.md)
 
@@ -175,7 +175,9 @@ meta 结构（schema_version 必填）：
 | name_key / desc_key | string | 本地化 key |
 | type | string | aoe/dash/dot/control/summon/buff |
 | cooldown | number | 秒 |
+| mana_cost | number | 蓝条消耗（M2 新增） |
 | damage | number | 基础伤害（可为 0） |
+| radius | number | AOE 半径（像素，非 AOE 技能可省略；M2 新增） |
 | effects | object[] | 附加状态/位移/召唤参数 |
 | rarity | string | common/fine/rare/epic/legendary |
 | tags | string[] | 分类标签 |
@@ -323,6 +325,8 @@ Run（B）向 UI（C）提供只读状态字典，C 不直接修改玩法状态�
 hud_state = {
     "hp": int,
     "max_hp": int,
+    "stamina": {"value": float, "max": float},
+    "mana": {"value": float, "max": float},
     "potions": int,
     "embers": int,
     "fire_seeds": int,
@@ -379,3 +383,4 @@ hud_state = {
 | 版本 | 日期 | 变更 |
 | --- | --- | --- |
 | v0.5 | 2026-11-18 | 初版：核心 API、事件、数据、关卡、UI、剧情标记契约 |
+| v0.6 | 2026-11-18 | skills.json 增加 mana_cost/radius；HUD 状态增加体力/蓝条（待三人评审） |

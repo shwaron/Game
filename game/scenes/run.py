@@ -30,10 +30,21 @@ class PracticeScene(Scene):
                 pygame.Rect(270, 148, 96, 8),
                 pygame.Rect(60, 106, 80, 8),
             ],
+            hazards=[
+                SimpleNamespace(
+                    kind="spikes", rect=pygame.Rect(200, 238, 40, 8), damage=15
+                ),
+                SimpleNamespace(
+                    kind="poison", rect=pygame.Rect(136, 240, 48, 6), damage=4.0
+                ),
+            ],
         )
         self.weapon = load_json("game/data/weapons.json")["weapons"][
             "worn_flame_blade"
         ]
+        self.skills = load_json("game/data/skills.json")["skills"]
+        self.skill_cooldowns = {skill_id: 0.0 for skill_id in self.skills}
+        self.cast_id = 0
         self.enemy_data = load_json("game/data/enemies.json")["enemies"]
         self.loot_tables = load_tables(load_json("game/data/loot_tables.json"))
         self.rng = random.Random()
@@ -47,6 +58,7 @@ class PracticeScene(Scene):
         self.hitstop = 0.0
         self.respawn_timer = 0.0
         self.death_timer = 0.0
+        self.skill_fx: list[list] = []
         self._font = None
         self._font_small = None
 
@@ -71,6 +83,9 @@ class PracticeScene(Scene):
             self.combat.register(enemy)
         self.projectiles = []
         self.pickups = []
+        self.skill_cooldowns = {skill_id: 0.0 for skill_id in self.skills}
+        self.cast_id = 0
+        self.skill_fx = []
         self.respawn_timer = 0.0
         self.death_timer = 0.0
 
@@ -101,6 +116,11 @@ class PracticeScene(Scene):
             return
 
         self.player.update(dt, inp, self.room)
+        self._update_hazards()
+        self._update_skills(inp, dt)
+        for fx in self.skill_fx:
+            fx[1] -= dt
+        self.skill_fx = [fx for fx in self.skill_fx if fx[1] > 0]
 
         hitbox = self.player.attack_hitbox
         if hitbox:
@@ -236,6 +256,54 @@ class PracticeScene(Scene):
             {"item_id": pickup.item_id, "rarity": "common", "slot": "none"},
         )
 
+    def _update_hazards(self) -> None:
+        player = self.player
+        for hazard in self.room.hazards:
+            if not hazard.rect.colliderect(player.rect):
+                continue
+            if hazard.kind == "spikes":
+                player.take_hit(hazard.damage, hazard.rect.center, 120.0)
+            elif hazard.kind == "poison":
+                player.status.apply("poison", 2.0, hazard.damage, max_stacks=1)
+
+    def _update_skills(self, inp, dt: float) -> None:
+        for skill_id in self.skill_cooldowns:
+            self.skill_cooldowns[skill_id] = max(
+                0.0, self.skill_cooldowns[skill_id] - dt
+            )
+        skill = self.skills.get("ember_burst")
+        if not skill or not inp.is_action_just_pressed("skill1"):
+            return
+        if self.skill_cooldowns["ember_burst"] > 0:
+            return
+        if not self.player.mana.spend(skill["mana_cost"]):
+            return
+        self.skill_cooldowns["ember_burst"] = skill["cooldown"]
+        self.cast_id += 1
+        radius = skill["radius"]
+        cx, cy = self.player.rect.center
+        area = pygame.Rect(cx - radius, cy - radius, radius * 2, radius * 2)
+        hits = self.combat.resolve_melee(
+            f"skill:ember_burst:{self.cast_id}",
+            area,
+            TEAM_PLAYER,
+            skill["damage"],
+            skill.get("knockback", 0.0),
+            source_pos=(cx, cy),
+        )
+        for target, _, _ in hits:
+            for effect in skill.get("effects", []):
+                if effect.get("status"):
+                    target.status.apply(
+                        effect["status"],
+                        effect.get("duration", 1.0),
+                        effect.get("potency", 0.0),
+                        effect.get("max_stacks", 1),
+                    )
+        self.skill_fx.append([area, 0.2])
+        if hits:
+            self.hitstop = config.HITSTOP_ON_HIT
+
     def draw(self, surface: pygame.Surface) -> None:
         c = config.COLORS
         surface.fill(c["bg"])
@@ -244,6 +312,17 @@ class PracticeScene(Scene):
             pygame.draw.rect(surface, c["terrain_top"], (rect.x, rect.y, rect.w, 2))
         for rect in self.room.one_ways:
             pygame.draw.rect(surface, c["one_way"], rect)
+        for hazard in self.room.hazards:
+            if hazard.kind == "spikes":
+                r = hazard.rect
+                for x in range(r.x, r.right, 8):
+                    pygame.draw.polygon(
+                        surface,
+                        c["spike"],
+                        [(x, r.bottom), (x + 4, r.top), (x + 8, r.bottom)],
+                    )
+            else:
+                pygame.draw.rect(surface, c["poison"], hazard.rect)
 
         for pickup in self.pickups:
             pickup.draw(surface)
@@ -251,26 +330,39 @@ class PracticeScene(Scene):
             projectile.draw(surface)
         for enemy in self.enemies:
             enemy.draw(surface)
+        for rect, _ttl in self.skill_fx:
+            pygame.draw.rect(surface, c["slash"], rect, 2)
         self.player.draw(surface)
         self._draw_hud(surface)
 
     def _draw_hud(self, surface: pygame.Surface) -> None:
         c = config.COLORS
         p = self.player
-        pygame.draw.rect(surface, c["terrain"], (12, 12, 64, 6))
-        filled = int(64 * p.health.hp / p.health.max_hp)
-        pygame.draw.rect(surface, c["ember"], (12, 12, filled, 6))
+        bars = (
+            (p.health.hp / p.health.max_hp, c["ember"]),
+            (p.stamina.value / p.stamina.max_value, c["stamina"]),
+            (p.mana.value / p.mana.max_value, c["mana"]),
+        )
+        for i, (ratio, color) in enumerate(bars):
+            y = 12 + i * 8
+            pygame.draw.rect(surface, c["terrain"], (12, y, 64, 5))
+            pygame.draw.rect(surface, color, (12, y, int(64 * ratio), 5))
+        skill_cd = self.skill_cooldowns.get("ember_burst", 0.0)
         info = (
-            f"HP {p.health.hp}/{p.health.max_hp}   embers {self.embers}   "
-            f"kills {self.kills}   parry "
-            + ("READY" if p.parry_cooldown <= 0 else f"{p.parry_cooldown:.2f}s")
+            f"HP {p.health.hp}/{p.health.max_hp}  ST {int(p.stamina.value)}  "
+            f"MP {int(p.mana.value)}  U "
+            + ("READY" if skill_cd <= 0 else f"{skill_cd:.1f}s")
         )
-        surface.blit(self._font.render(info, True, c["hud"]), (12, 24))
+        surface.blit(self._font.render(info, True, c["hud"]), (12, 36))
         held = ", ".join(sorted(self.game.input.pressed_actions())) or "-"
-        surface.blit(
-            self._font_small.render(f"held: {held}", True, c["hud_dim"]), (12, 40)
+        status = (
+            "K "
+            + ("READY" if p.parry_cooldown <= 0 else f"{p.parry_cooldown:.2f}s")
+            + f"   embers {self.embers}   kills {self.kills}   held: {held}"
         )
+        surface.blit(self._font_small.render(status, True, c["hud_dim"]), (12, 50))
         hint = (
-            "A/D move  SPACE jump  SHIFT dash  J attack  K parry  R reset  ESC quit"
+            "A/D move  SPACE jump  SHIFT dash  J attack  K parry  "
+            "U skill  R reset  ESC quit"
         )
         surface.blit(self._font_small.render(hint, True, c["hud_dim"]), (12, 258))

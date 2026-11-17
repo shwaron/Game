@@ -26,6 +26,7 @@ class Enemy:
         self.death_reported = False
         self.swing_id = 0
         self.pending_projectile: dict | None = None
+        self._dot_pool = 0.0
 
     @property
     def rect(self) -> pygame.Rect:
@@ -70,10 +71,14 @@ class Enemy:
 
         dot = self.status.update(dt)
         if dot > 0:
-            self.health.take_damage(int(dot))
-            if not self.health.alive:
-                self.state = "dead"
-                return
+            self._dot_pool += dot
+            whole = int(self._dot_pool)
+            if whole > 0:
+                self._dot_pool -= whole
+                self.health.take_damage(whole)
+                if not self.health.alive:
+                    self.state = "dead"
+                    return
 
         self.hit_flash = max(0.0, self.hit_flash - dt)
         self.cooldown = max(0.0, self.cooldown - dt)

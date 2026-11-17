@@ -3,6 +3,7 @@ import pygame
 from game import config
 from game.components.health import Health
 from game.components.physics import PhysicsBody
+from game.components.resources import ResourcePool
 from game.components.status_effects import StatusEffects
 from game.systems.combat import TEAM_PLAYER
 
@@ -28,6 +29,12 @@ class Player:
         self.team = TEAM_PLAYER
         self.weapon = weapon or DEFAULT_WEAPON
         self.health = Health(100)
+        self.stamina = ResourcePool(
+            config.STAMINA_MAX, config.STAMINA_REGEN, config.STAMINA_REGEN_DELAY
+        )
+        self.mana = ResourcePool(
+            config.MANA_MAX, config.MANA_REGEN, config.MANA_REGEN_DELAY
+        )
         self.status = StatusEffects()
         self.facing = 1
         self.state = "fall"
@@ -49,6 +56,8 @@ class Player:
         self.attack_power = 0.0
         self.swing_id = 0
         self.death_reported = False
+        self._fall_speed = 0.0
+        self._dot_pool = 0.0
         self.ghosts: list[list] = []
 
     @property
@@ -94,6 +103,19 @@ class Player:
     def heal(self, amount: int) -> None:
         self.health.heal(amount)
 
+    def _apply_fall_damage(self) -> None:
+        if self._fall_speed < config.FALL_SAFE_SPEED:
+            return
+        damage = int(
+            round((self._fall_speed - config.FALL_SAFE_SPEED) * config.FALL_DAMAGE_SCALE)
+        )
+        if damage <= 0:
+            return
+        self.health.take_damage(damage)
+        self.hurt_timer = 0.2
+        if not self.health.alive:
+            self.state = "dead"
+
     def update(self, dt: float, inp, room) -> None:
         self.jump_buffer = max(0.0, self.jump_buffer - dt)
         self.attack_buffer = max(0.0, self.attack_buffer - dt)
@@ -104,14 +126,20 @@ class Player:
         self.parry_timer = max(0.0, self.parry_timer - dt)
         self.parry_cooldown = max(0.0, self.parry_cooldown - dt)
         self.counter_timer = max(0.0, self.counter_timer - dt)
+        self.stamina.update(dt)
+        self.mana.update(dt)
         if not self.body.on_ground:
             self.coyote = max(0.0, self.coyote - dt)
 
         dot = self.status.update(dt)
         if dot > 0:
-            self.health.take_damage(int(self.status.absorb(dot)))
-            if not self.health.alive:
-                self.state = "dead"
+            self._dot_pool += self.status.absorb(dot)
+            whole = int(self._dot_pool)
+            if whole > 0:
+                self._dot_pool -= whole
+                self.health.take_damage(whole)
+                if not self.health.alive:
+                    self.state = "dead"
 
         if not self.health.alive:
             self.state = "dead"
@@ -123,6 +151,9 @@ class Player:
             return
 
         stunned = self.status.stunned
+        was_airborne = not self.body.on_ground
+        if was_airborne:
+            self._fall_speed = max(self._fall_speed, self.body.vel_y)
         axis = 0.0 if stunned else inp.get_axis("move_x")
         if axis != 0:
             self.facing = 1 if axis > 0 else -1
@@ -136,18 +167,20 @@ class Player:
                 and self.parry_cooldown <= 0
                 and self.dash_time <= 0
             ):
-                self.parry_timer = PARRY_WINDOW
-                self.parry_cooldown = PARRY_COOLDOWN
+                if self.stamina.spend(config.PARRY_STAMINA_COST):
+                    self.parry_timer = PARRY_WINDOW
+                    self.parry_cooldown = PARRY_COOLDOWN
             if (
                 inp.is_action_just_pressed("dash")
                 and self.dash_cooldown <= 0
                 and self.dash_time <= 0
             ):
-                self.dash_time = config.DASH_TIME
-                self.dash_cooldown = config.DASH_COOLDOWN
-                self.invuln = max(self.invuln, config.DASH_INVULN)
-                self.dash_dir = self.facing
-                self.body.vel_y = 0.0
+                if self.stamina.spend(config.DASH_STAMINA_COST):
+                    self.dash_time = config.DASH_TIME
+                    self.dash_cooldown = config.DASH_COOLDOWN
+                    self.invuln = max(self.invuln, config.DASH_INVULN)
+                    self.dash_dir = self.facing
+                    self.body.vel_y = 0.0
 
         if self.dash_time > 0:
             self.dash_time -= dt
@@ -204,6 +237,11 @@ class Player:
             )
             if self.body.on_ground:
                 self.coyote = config.COYOTE_TIME
+
+        if self.body.on_ground:
+            if was_airborne:
+                self._apply_fall_damage()
+            self._fall_speed = 0.0
 
         if not stunned:
             self._update_attack(dt)

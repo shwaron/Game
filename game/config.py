@@ -41,6 +41,19 @@ ATTACK_BUFFER = 0.12
 ATTACK_HITBOX = (30, 26)
 HITSTOP_ON_HIT = 0.05
 
+STAMINA_MAX = 100.0
+STAMINA_REGEN = 35.0
+STAMINA_REGEN_DELAY = 0.6
+DASH_STAMINA_COST = 20.0
+PARRY_STAMINA_COST = 15.0
+
+MANA_MAX = 100.0
+MANA_REGEN = 10.0
+MANA_REGEN_DELAY = 1.0
+
+FALL_SAFE_SPEED = 380.0
+FALL_DAMAGE_SCALE = 0.35
+
 PLAYER_SIZE = (18, 38)
 
 COLORS = {
@@ -56,4 +69,8 @@ COLORS = {
     "dummy_flash": (255, 245, 230),
     "hud": (200, 195, 215),
     "hud_dim": (120, 115, 140),
+    "stamina": (122, 200, 132),
+    "mana": (92, 150, 232),
+    "spike": (178, 166, 196),
+    "poison": (108, 188, 92),
 }
