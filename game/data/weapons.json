@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "weapons": {
+    "worn_flame_blade": {
+      "name_key": "weapon.worn_flame_blade.name",
+      "class": "sword",
+      "base_damage": 12,
+      "attack_speed": 1.0,
+      "combo": [1.0],
+      "hitbox": [30, 26],
+      "windup_ms": 50,
+      "active_ms": 80,
+      "recovery_ms": 140,
+      "knockback": 120,
+      "tags": ["melee", "starter"]
+    }
+  }
+}

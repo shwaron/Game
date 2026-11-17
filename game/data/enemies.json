@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "enemies": {
+    "ash_crawler": {
+      "name_key": "enemy.ash_crawler.name",
+      "biome": "ash_outskirts",
+      "hp": 30,
+      "damage": 8,
+      "armor": 0,
+      "speed": 60,
+      "detect_range": 150,
+      "attacks": [
+        {
+          "id": "bite",
+          "windup_ms": 350,
+          "active_ms": 100,
+          "recovery_ms": 500,
+          "hitbox": [26, 24],
+          "range": 28,
+          "knockback": 140,
+          "cooldown": 1.2
+        }
+      ],
+      "elite_affixes": [],
+      "loot_table": "ash_crawler",
+      "sprite": ""
+    },
+    "bone_archer": {
+      "name_key": "enemy.bone_archer.name",
+      "biome": "ash_outskirts",
+      "hp": 22,
+      "damage": 6,
+      "armor": 0,
+      "speed": 45,
+      "detect_range": 210,
+      "keep_distance": 90,
+      "attacks": [
+        {
+          "id": "shoot",
+          "windup_ms": 400,
+          "active_ms": 60,
+          "recovery_ms": 600,
+          "cooldown": 1.8,
+          "projectile": {
+            "speed": 160,
+            "size": [6, 3],
+            "life": 3.0
+          }
+        }
+      ],
+      "elite_affixes": [],
+      "loot_table": "bone_archer",
+      "sprite": ""
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "tables": {
+    "ash_crawler": {
+      "entries": [
+        {"item": "fire_seed", "weight": 70},
+        {"item": "potion", "weight": 30}
+      ]
+    },
+    "bone_archer": {
+      "entries": [
+        {"item": "fire_seed", "weight": 55},
+        {"item": "potion", "weight": 45}
+      ]
+    }
+  }
+}

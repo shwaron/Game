@@ -116,3 +116,42 @@ def test_attack_hitbox_only_in_active_phase():
     hitbox = player.attack_hitbox
     assert hitbox is not None
     assert hitbox.left == player.rect.right
+
+
+def test_parry_window_and_cooldown():
+    player = Player(100, 208)
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    inp.press("offhand")
+    step(player, inp, room)
+    assert player.is_parrying
+    assert player.parry_cooldown > 0
+    step(player, inp, room, 10)
+    assert not player.is_parrying
+
+
+def test_parry_counter_buffs_next_attack():
+    player = Player(100, 208)
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    player.parry_success()
+    assert player.counter_timer > 0
+    inp.press("attack")
+    step(player, inp, room)
+    assert player.attack_power == player.weapon["base_damage"] * 1.5
+    assert player.counter_timer == 0
+
+
+def test_take_hit_applies_iframes_and_knockback():
+    player = Player(100, 208)
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    assert player.take_hit(10, (200, 208), 100)
+    assert player.health.hp == 90
+    assert player.invuln > 0
+    assert player.body.vel_y < 0
+    assert not player.take_hit(10, (200, 208), 100)
+    assert player.health.hp == 90
