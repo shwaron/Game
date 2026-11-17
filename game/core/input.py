@@ -23,16 +23,36 @@ DEFAULT_BINDINGS: dict[str, list[tuple[str, int]]] = {
 class InputManager:
     def __init__(self) -> None:
         self._bindings = {a: list(b) for a, b in DEFAULT_BINDINGS.items()}
+        self._held_keys: set[int] = set()
+        self._held_mouse: set[int] = set()
         self._pressed: set[str] = set()
         self._just: set[str] = set()
 
     def update(self, events) -> None:
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                self._held_keys.add(event.key)
+            elif event.type == pygame.KEYUP:
+                self._held_keys.discard(event.key)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                self._held_mouse.add(event.button)
+            elif event.type == pygame.MOUSEBUTTONUP:
+                self._held_mouse.discard(event.button)
+            elif event.type == pygame.WINDOWFOCUSLOST:
+                self._held_keys.clear()
+                self._held_mouse.clear()
+
         keys = pygame.key.get_pressed()
         mouse = pygame.mouse.get_pressed(5)
         now: set[str] = set()
         for action, bindings in self._bindings.items():
             for kind, code in bindings:
-                held = keys[code] if kind == KEY else mouse[code - 1]
+                if kind == KEY:
+                    held = code in self._held_keys or keys[code]
+                else:
+                    held = code in self._held_mouse or (
+                        code - 1 < len(mouse) and mouse[code - 1]
+                    )
                 if held:
                     now.add(action)
                     break
@@ -47,6 +67,9 @@ class InputManager:
 
     def is_action_just_pressed(self, action: str) -> bool:
         return action in self._just
+
+    def pressed_actions(self) -> set[str]:
+        return set(self._pressed)
 
     def get_axis(self, axis: str) -> float:
         if axis == "move_x":

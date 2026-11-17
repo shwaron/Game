@@ -10,6 +10,7 @@ from game.scenes.run import PracticeScene
 class Game:
     def __init__(self) -> None:
         pygame.init()
+        pygame.key.stop_text_input()
         pygame.display.set_caption("Emberloop — M1 Prototype")
         self.window = pygame.display.set_mode(
             (config.WINDOW_WIDTH, config.WINDOW_HEIGHT)

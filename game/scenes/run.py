@@ -81,5 +81,9 @@ class PracticeScene(Scene):
             f"dash {dash}   pos ({p.rect.x}, {p.rect.y})"
         )
         surface.blit(self._font.render(line, True, c["hud"]), (12, 12))
+        held = ", ".join(sorted(self.game.input.pressed_actions())) or "-"
+        surface.blit(
+            self._font_small.render(f"held: {held}", True, c["hud_dim"]), (12, 26)
+        )
         hint = "A/D move   SPACE jump   S+SPACE drop   SHIFT dash   J attack   ESC quit"
         surface.blit(self._font_small.render(hint, True, c["hud_dim"]), (12, 258))
