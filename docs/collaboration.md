@@ -94,7 +94,7 @@ GitHub 已对 `main` 开启 branch protection（2026-11-18）：
 - 协作者禁止直接 push，必须走 PR；至少 1 位评审通过，且需 CODEOWNERS 对应 owner 评审。
 - 新提交会作废旧评审（dismiss stale reviews）；PR 中的讨论必须全部解决才能合并。
 - 禁止 force push 与删除 `main`；冲突用 merge/rebase 解决，不丢弃他人改动。
-- 管理员（shwaron）豁免：每小时的自动上传任务直接 push `main`，不受 PR 限制。
+- 管理员（shwaron）豁免分支保护；每小时自动上传任务只推送到个人分支 `dev/shwaron`，测试通过后由本人合并到 `main`。
 
 ### 4.4 提交信息规范
 
