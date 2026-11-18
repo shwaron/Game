@@ -55,7 +55,10 @@ class PracticeScene(Scene):
         self.weapon_slots = [
             self._make_weapon(weapon_data["worn_flame_blade"], "worn_flame_blade", 2),
             self._make_weapon(weapon_data["desperate_edge"], "desperate_edge", 1),
+            self._make_weapon(weapon_data["bell_hammer"], "bell_hammer", 1),
+            self._make_weapon(weapon_data["rift_spear"], "rift_spear", 1),
             self._make_weapon(weapon_data["gale_daggers"], "gale_daggers", 1),
+            self._make_weapon(weapon_data["ember_staff"], "ember_staff", 1),
         ]
         self.weapon_index = 0
         self.weapon = self.weapon_slots[0]
@@ -403,6 +406,7 @@ class PracticeScene(Scene):
         weapon = self.weapon
         bonus = scaling_bonus(weapon, p)
         weapon_line = (
+            f"{self.weapon_index + 1}/{len(self.weapon_slots)} "
             f"{WEAPON_LABELS.get(weapon.get('id'), '?')} "
             f"Lv{weapon_level(weapon)}  DMG {weapon_damage(weapon, p):.1f}"
             + (f" (+{int(bonus * 100)}%)" if bonus > 0 else "")

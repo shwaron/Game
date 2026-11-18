@@ -1,6 +1,6 @@
 # 《余烬回环》像素动画与动作引擎设计
 
-> 版本：v0.1
+> 版本：v0.2
 > 更新日期：2026-11-18
 > 相关文档：[接口与数据契约](interfaces.md) · [机制](mechanics.md) · [场景与素材规范](scenes.md)
 
@@ -19,13 +19,15 @@
 | 移动 | `jump` | 离地且上升 | 否 | 起跳 |
 | 移动 | `fall` | 离地且下落 | 是 | 下落 |
 | 移动 | `dash` | `dash_time > 0` | 否 | 冲刺，附带残影 |
-| 战斗 | `attack_windup` | `attack_phase == windup` | 否 | 前摇（与武器 `windup_ms` 等长） |
-| 战斗 | `attack_active` | `attack_phase == active` | 否 | 判定帧（与 `active_ms` 等长） |
-| 战斗 | `attack_recovery` | `attack_phase == recovery` | 否 | 后摇（与 `recovery_ms` 等长） |
+| 战斗 | `attack_<class>_windup` | `attack_phase == windup` | 否 | 前摇（与武器 `windup_ms` 等长） |
+| 战斗 | `attack_<class>_active` | `attack_phase == active` | 否 | 判定帧（与 `active_ms` 等长） |
+| 战斗 | `attack_<class>_recovery` | `attack_phase == recovery` | 否 | 后摇（与 `recovery_ms` 等长） |
 | 战斗 | `parry` | `parry_timer > 0` | 否 | 弹反窗口（0.15 s） |
 | 技能 | `skill` | `cast_timer > 0` | 否 | 施法（0.25 s），移动与受击可打断表现 |
 | 受创 | `hurt` | `hurt_timer > 0` | 否 | 受击闪白 |
 | 受创 | `death` | 生命 ≤ 0 | 否 | 倒地，停在末帧 |
+
+攻击动作按武器类别细分：`<class>` ∈ `sword / dagger / hammer / spear / staff`，共 15 个片段；玩家 `weapon["class"]` 决定播放哪一套（缺省或未识别类别回退 `sword`）。各片段帧率与对应武器的 `windup_ms / active_ms / recovery_ms` 对齐，保证观感与判定节奏一致。
 
 ### 1.2 敌人动作
 
@@ -52,12 +54,12 @@
     "origin": [7, 2],
     "clips": {
       "idle": {"sheet": "sprites/player/idle.png", "frames": 4, "fps": 6, "loop": true},
-      "attack_active": {
-        "sheet": "sprites/player/attack_active.png",
+      "attack_sword_active": {
+        "sheet": "sprites/player/attack_sword_active.png",
         "frames": 4,
         "fps": 50,
         "loop": false,
-        "events": [{"frame": 0, "name": "swing_start"}]
+        "events": [{"frame": 0, "name": "swing_hit"}]
       }
     }
   },
@@ -82,7 +84,7 @@
 | 玩家 | `assets/sprites/player/<action>.png` | 32×40 |
 | 敌人 | `assets/sprites/enemies/<enemy_id>/<action>.png` | 24×36 |
 
-- 占位素材由 `tools/gen_placeholder_sprites.py` 生成，正式素材替换时**保持路径与帧数不变**；帧数变化须同步 `animations.json` 并跑校验。
+- 占位素材由 `tools/gen_placeholder_sprites.py` 以火柴人骨骼风格生成：关节坐标 + 2px 骨骼连线，武器直接画在手上，便于检查动作轮廓；正式素材替换时**保持路径与帧数不变**，帧数变化须同步 `animations.json` 并跑校验。
 - 朝向：素材默认朝右，绘制时按 `facing < 0` 水平翻转并缓存翻转面。
 
 ---
@@ -118,7 +120,7 @@ class Animator:
 
 ### 3.1 状态优先级
 
-玩家（高 → 低）：`death > hurt > dash > skill > attack_windup/active/recovery > parry > jump/fall > run > idle`。
+玩家（高 → 低）：`death > hurt > dash > skill > attack_<class>_windup/active/recovery > parry > jump/fall > run > idle`。
 
 敌人（高 → 低）：`death > stagger > windup > active > recovery > walk > idle`。
 
@@ -128,7 +130,7 @@ class Animator:
 
 | 动画 | 逻辑窗口来源 | 时长（默认） |
 | --- | --- | --- |
-| `attack_*` | `weapons.json` 的 `windup_ms / active_ms / recovery_ms` | 50 / 80 / 140 ms |
+| `attack_*` | `weapons.json` 的 `windup_ms / active_ms / recovery_ms` | 按武器类别：剑 50/80/140、匕 30/60/90、锤 130/90/300、枪 70/70/160、杖 80/90/170 ms |
 | `parry` | 弹反窗口 | 150 ms |
 | `skill` | 施法锁 `cast_timer` | 250 ms |
 | `hurt` | 受击闪烁 | 250 ms |
@@ -153,3 +155,5 @@ class Animator:
 | 版本 | 日期 | 变更 |
 | --- | --- | --- |
 | v0.1 | 2026-11-18 | 初版：动作分类、片段契约、Animator API、玩家/敌人接入方案 |
+| v0.2 | 2026-11-18 | 攻击动作按武器类别拆分 15 个片段；新增匕/锤/枪/杖占位帧，剑类资源更名 `attack_sword_*` |
+| v0.3 | 2026-11-18 | 玩家/敌人全部占位素材改为火柴人骨骼框架；攻击判定框调试绘制改为细描边 |

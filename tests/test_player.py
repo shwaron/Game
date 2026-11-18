@@ -14,9 +14,21 @@ ANIM_NAMES = [
     "jump",
     "fall",
     "dash",
-    "attack_windup",
-    "attack_active",
-    "attack_recovery",
+    "attack_sword_windup",
+    "attack_sword_active",
+    "attack_sword_recovery",
+    "attack_dagger_windup",
+    "attack_dagger_active",
+    "attack_dagger_recovery",
+    "attack_hammer_windup",
+    "attack_hammer_active",
+    "attack_hammer_recovery",
+    "attack_spear_windup",
+    "attack_spear_active",
+    "attack_spear_recovery",
+    "attack_staff_windup",
+    "attack_staff_active",
+    "attack_staff_recovery",
     "parry",
     "skill",
     "hurt",
@@ -265,15 +277,45 @@ def test_animation_follows_attack_phases_and_death():
     step(player, inp, room, 2)
     inp.press("attack")
     step(player, inp, room)
-    assert player.anim.current == "attack_windup"
+    assert player.anim.current == "attack_sword_windup"
     for _ in range(10):
         step(player, inp, room)
         if player.attack_phase == "active":
             break
-    assert player.anim.current == "attack_active"
+    assert player.anim.current == "attack_sword_active"
     player.health.take_damage(999)
     step(player, inp, room)
     assert player.anim.current == "death"
+
+
+def test_attack_animation_uses_weapon_class():
+    base = {
+        "hitbox": [30, 26],
+        "windup_ms": 50,
+        "active_ms": 80,
+        "recovery_ms": 140,
+        "knockback": 0,
+        "base_damage": 5,
+    }
+    expected = {
+        "sword": "attack_sword_windup",
+        "dagger": "attack_dagger_windup",
+        "hammer": "attack_hammer_windup",
+        "spear": "attack_spear_windup",
+        "staff": "attack_staff_windup",
+        None: "attack_sword_windup",
+    }
+    for weapon_class, clip in expected.items():
+        weapon = dict(base)
+        if weapon_class is not None:
+            weapon["class"] = weapon_class
+        player = Player(100, 208, weapon, anim_clips=make_anim_clips())
+        inp = FakeInput()
+        room = make_room()
+        step(player, inp, room, 2)
+        inp.press("attack")
+        step(player, inp, room)
+        assert player.anim.current == clip, (weapon_class, player.anim.current)
 
 
 def test_animation_follows_hurt_and_parry():

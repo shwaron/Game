@@ -328,7 +328,7 @@ class Animator:
 | clips.*.loop | bool | 是否循环；非循环停在末帧 |
 | clips.*.events | object[] | 帧事件 `{frame, name}`，可选 |
 
-规则见 [动画引擎设计](animation.md)；占位帧由 `tools/gen_placeholder_sprites.py` 生成，替换正式素材须保持路径与帧数。
+规则见 [动画引擎设计](animation.md)；占位帧为火柴人骨骼风格，由 `tools/gen_placeholder_sprites.py` 生成，替换正式素材须保持路径与帧数。
 
 ---
 
@@ -439,3 +439,4 @@ hud_state = {
 | v0.6 | 2026-11-18 | skills.json 增加 mana_cost/radius；HUD 状态增加体力/蓝条（待三人评审） |
 | v0.7 | 2026-11-18 | 新增 Animator 接口与 animations.json 契约；占位像素帧生成器（待三人评审） |
 | v0.8 | 2026-11-18 | weapons.json 增加 max_level/level_scale/scaling；weapon_damage 计算与原语；HUD weapon 增加 level/damage/scaling_bonus（待三人评审） |
+| v0.9 | 2026-11-18 | 玩家攻击动画片段改为 `attack_<class>_windup/active/recovery`（5 类共 15 个）；weapon 的 class 决定动作模组（待三人评审） |

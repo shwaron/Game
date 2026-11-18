@@ -23,6 +23,7 @@ PARRY_COOLDOWN = 0.5
 COUNTER_DURATION = 1.2
 COUNTER_MULTIPLIER = 1.5
 HURT_IFRAMES = 0.8
+WEAPON_ANIM_CLASSES = {"sword", "dagger", "hammer", "spear", "staff"}
 
 
 class Player:
@@ -279,6 +280,12 @@ class Player:
             self.anim.play(self._animation_name())
             self.anim.update(dt)
 
+    def _attack_animation_name(self) -> str:
+        weapon_class = self.weapon.get("class", "sword")
+        if weapon_class not in WEAPON_ANIM_CLASSES:
+            weapon_class = "sword"
+        return f"attack_{weapon_class}_{self.attack_phase}"
+
     def _animation_name(self) -> str:
         if not self.health.alive:
             return "death"
@@ -288,12 +295,8 @@ class Player:
             return "dash"
         if self.cast_timer > 0:
             return "skill"
-        if self.attack_phase == "windup":
-            return "attack_windup"
-        if self.attack_phase == "active":
-            return "attack_active"
-        if self.attack_phase == "recovery":
-            return "attack_recovery"
+        if self.attack_phase:
+            return self._attack_animation_name()
         if self.parry_timer > 0:
             return "parry"
         if not self.body.on_ground:
@@ -354,7 +357,7 @@ class Player:
 
         hitbox = self.attack_hitbox
         if hitbox:
-            pygame.draw.rect(surface, c["slash"], hitbox)
+            pygame.draw.rect(surface, c["slash"], hitbox, 1)
         elif self.attack_phase == "windup" and not self.anim:
             spark_x = r.right if self.facing > 0 else r.left - 4
             pygame.draw.rect(surface, c["ember"], (spark_x, r.centery - 2, 4, 4))
