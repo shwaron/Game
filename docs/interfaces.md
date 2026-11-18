@@ -182,9 +182,20 @@ class Animator:
 | hitbox | [w, h] | 攻击框 |
 | windup_ms / active_ms / recovery_ms | number | 帧窗口 |
 | knockback | number | 击退 |
+| max_level | number | 等级上限（默认 5；M2 新增） |
+| level_scale | number | 每级伤害增量（默认 0.1；M2 新增） |
+| scaling | object[] | 属性绑定 `{stat, max_bonus}`，stat 为 missing_hp/hp/stamina/mana（M2 新增） |
 | tags | string[] | melee/ranged/starter 等 |
 
-示例见 [机制文档](mechanics.md) 3.8。
+运行时武器实例另带 `id` 与 `level`（不写入 JSON）。伤害计算由 `game/systems/weapons.py` 的 `weapon_damage(weapon, player)` 提供：
+
+```text
+伤害 = base_damage × (1 + level_scale × (level − 1)) × (1 + Σ max_bonus × 属性比例)
+```
+
+武器比例定义：`missing_hp = 1 − hp/max_hp`，`hp = hp/max_hp`，`stamina/mana = 当前/上限`。
+
+示例见 [武器系统](weapons.md)。
 
 ### 3.2 skills.json
 
@@ -366,7 +377,14 @@ hud_state = {
     "embers": int,
     "fire_seeds": int,
     "skills": [{"id": str, "cooldown": float, "ready": bool}],
-    "weapon": {"id": str, "name_key": str, "rarity": str},
+    "weapon": {
+        "id": str,
+        "name_key": str,
+        "rarity": str,
+        "level": int,
+        "damage": float,
+        "scaling_bonus": float,
+    },
     "buffs": [{"id": str, "stacks": int}],
     "room": {"id": str, "biome": str},
 }
@@ -420,3 +438,4 @@ hud_state = {
 | v0.5 | 2026-11-18 | 初版：核心 API、事件、数据、关卡、UI、剧情标记契约 |
 | v0.6 | 2026-11-18 | skills.json 增加 mana_cost/radius；HUD 状态增加体力/蓝条（待三人评审） |
 | v0.7 | 2026-11-18 | 新增 Animator 接口与 animations.json 契约；占位像素帧生成器（待三人评审） |
+| v0.8 | 2026-11-18 | weapons.json 增加 max_level/level_scale/scaling；weapon_damage 计算与原语；HUD weapon 增加 level/damage/scaling_bonus（待三人评审） |

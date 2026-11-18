@@ -7,6 +7,7 @@ from game.components.resources import ResourcePool
 from game.components.status_effects import StatusEffects
 from game.core.animation import Animator
 from game.systems.combat import TEAM_PLAYER
+from game.systems.weapons import weapon_damage
 
 DEFAULT_WEAPON = {
     "base_damage": 12,
@@ -309,7 +310,7 @@ class Player:
                 self.attack_buffer = 0.0
                 self.attack_hit = False
                 self.swing_id += 1
-                self.attack_power = float(self.weapon["base_damage"])
+                self.attack_power = weapon_damage(self.weapon, self)
                 if self.counter_timer > 0:
                     self.attack_power *= COUNTER_MULTIPLIER
                     self.counter_timer = 0.0

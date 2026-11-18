@@ -13,6 +13,17 @@ from game.entities.player import Player
 from game.entities.projectile import Projectile
 from game.systems.combat import TEAM_ENEMY, TEAM_PLAYER, CombatSystem
 from game.systems.loot import load_tables, roll_table
+from game.systems.weapons import scaling_bonus, weapon_damage, weapon_level
+
+WEAPON_LABELS = {
+    "worn_flame_blade": "Worn Flame Blade",
+    "ash_daggers": "Ash Daggers",
+    "bell_hammer": "Bell Hammer",
+    "rift_spear": "Rift Spear",
+    "desperate_edge": "Desperate Edge",
+    "gale_daggers": "Gale Daggers",
+    "ember_staff": "Ember Staff",
+}
 
 
 class PracticeScene(Scene):
@@ -40,9 +51,14 @@ class PracticeScene(Scene):
                 ),
             ],
         )
-        self.weapon = load_json("game/data/weapons.json")["weapons"][
-            "worn_flame_blade"
+        weapon_data = load_json("game/data/weapons.json")["weapons"]
+        self.weapon_slots = [
+            self._make_weapon(weapon_data["worn_flame_blade"], "worn_flame_blade", 2),
+            self._make_weapon(weapon_data["desperate_edge"], "desperate_edge", 1),
+            self._make_weapon(weapon_data["gale_daggers"], "gale_daggers", 1),
         ]
+        self.weapon_index = 0
+        self.weapon = self.weapon_slots[0]
         self.skills = load_json("game/data/skills.json")["skills"]
         self.skill_cooldowns = {skill_id: 0.0 for skill_id in self.skills}
         self.cast_id = 0
@@ -74,8 +90,16 @@ class PracticeScene(Scene):
         self._font_small = pygame.font.Font(None, 11)
         self._reset_arena()
 
+    @staticmethod
+    def _make_weapon(data: dict, weapon_id: str, level: int) -> dict:
+        weapon = dict(data)
+        weapon["id"] = weapon_id
+        weapon["level"] = level
+        return weapon
+
     def _reset_arena(self) -> None:
         self.combat = CombatSystem(self.rng)
+        self.weapon = self.weapon_slots[self.weapon_index]
         self.player = Player(48, 200, self.weapon, self.player_anims)
         self.combat.register(self.player)
         self.enemies = [
@@ -133,6 +157,10 @@ class PracticeScene(Scene):
             return
 
         self.player.update(dt, inp, self.room)
+        if inp.is_action_just_pressed("swap") and self.player.attack_phase is None:
+            self.weapon_index = (self.weapon_index + 1) % len(self.weapon_slots)
+            self.weapon = self.weapon_slots[self.weapon_index]
+            self.player.weapon = self.weapon
         self._update_hazards()
         self._update_skills(inp, dt)
         for fx in self.skill_fx:
@@ -372,6 +400,15 @@ class PracticeScene(Scene):
             + ("READY" if skill_cd <= 0 else f"{skill_cd:.1f}s")
         )
         surface.blit(self._font.render(info, True, c["hud"]), (12, 36))
+        weapon = self.weapon
+        bonus = scaling_bonus(weapon, p)
+        weapon_line = (
+            f"{WEAPON_LABELS.get(weapon.get('id'), '?')} "
+            f"Lv{weapon_level(weapon)}  DMG {weapon_damage(weapon, p):.1f}"
+            + (f" (+{int(bonus * 100)}%)" if bonus > 0 else "")
+        )
+        weapon_text = self._font.render(weapon_line, True, c["hud"])
+        surface.blit(weapon_text, (468 - weapon_text.get_width(), 12))
         held = ", ".join(sorted(self.game.input.pressed_actions())) or "-"
         status = (
             "K "
@@ -381,6 +418,6 @@ class PracticeScene(Scene):
         surface.blit(self._font_small.render(status, True, c["hud_dim"]), (12, 50))
         hint = (
             "A/D move  SPACE jump  SHIFT dash  J attack  K parry  "
-            "U skill  R reset  ESC quit"
+            "Q swap  U skill  R reset  ESC quit"
         )
         surface.blit(self._font_small.render(hint, True, c["hud_dim"]), (12, 258))

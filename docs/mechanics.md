@@ -46,11 +46,15 @@
 - 伤害公式（MVP）：
 
 ```text
-最终伤害 = 武器基础伤害 × 技能倍率 × (1 + 增伤词缀总和)
+最终伤害 = 武器实际伤害 × 技能倍率 × (1 + 增伤词缀总和)
            × 暴击倍率 × 元素易伤系数
            - 目标护甲（固定减伤，最低 1）
+
+武器实际伤害 = 基础伤害 × (1 + level_scale × (等级 − 1))
+              × (1 + Σ max_bonus × 属性比例)
 ```
 
+- 武器等级成长与属性绑定（低血量增伤等）详见 [武器系统](weapons.md) 第 4、5 节；M2 已按此式实现 `game/systems/weapons.py`。
 - 暴击：基础 5%，上限 75%；暴击伤害默认 1.5 倍（词缀可加）。
 - 状态效果：
   - 燃烧：每秒最大生命 1.5%，持续 3 s，可叠 3 层。
@@ -293,16 +297,21 @@
     "class": "sword",
     "base_damage": 12,
     "attack_speed": 1.0,
-    "combo": [12, 14, 20],
+    "combo": [1.0, 1.2, 1.5],
     "hitbox": [28, 20],
     "windup_ms": 80,
     "active_ms": 90,
     "recovery_ms": 120,
     "knockback": 120,
+    "max_level": 5,
+    "level_scale": 0.1,
+    "scaling": [],
     "tags": ["melee", "starter"]
   }
 }
 ```
+
+`combo` 为每段倍率；`scaling` 为属性绑定列表（`{stat, max_bonus}`），完整字段与七把示例武器见 [武器系统](weapons.md)。
 
 ---
 
