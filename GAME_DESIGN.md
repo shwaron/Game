@@ -279,18 +279,18 @@ Demo/
 
 本项目按三人团队并行开发设计，详细规则见 [分工协作指南](docs/collaboration.md) 与 [接口契约](docs/interfaces.md)。
 
-| 角色 | 代号 | 负责目录 | 核心产出 |
-| --- | --- | --- | --- |
-| 引擎与框架 | A | `game/core/`、`game/components/`、打包与测试基础设施 | 可运行框架、稳定 API、exe 构建 |
-| 玩法与关卡 | B | `game/entities/`、`game/systems/`、`game/world/`、玩法数据表、`assets/maps/` | 战斗、固定关卡、装备与敌人内容 |
-| 叙事与界面 | C | `game/scenes/`、`game/ui/`、剧情/本地化数据、`assets/ui/`、`assets/fonts/` | UI/UX、剧情呈现、文本与本地化 |
+| 角色 | 代号 | 成员 | 负责目录 | 核心产出 |
+| --- | --- | --- | --- | --- |
+| 引擎与框架 | A | shwaron | `game/core/`、`game/components/`、打包与测试基础设施 | 可运行框架、稳定 API、exe 构建 |
+| 玩法与关卡 | B | 0range03 | `game/entities/`、`game/systems/`、`game/world/`、玩法数据表、`assets/maps/` | 战斗、固定关卡、装备与敌人内容 |
+| 叙事与界面 | C | shuoyu04 | `game/scenes/`、`game/ui/`、剧情/本地化数据、`assets/ui/`、`assets/fonts/` | UI/UX、剧情呈现、文本与本地化 |
 
 协作要点：
 
 - 契约先行：跨模块通信只走 [interfaces.md](docs/interfaces.md) 定义的 API、事件与数据格式。
 - 模块隔离：不跨目录改他人代码；共享契约变更需三人评审。
 - 主干可运行：`main` 始终可启动、可测试；功能走分支 + PR。
-- 目录所有权：见 `CODEOWNERS` 模板，填入 GitHub 用户名后启用自动评审。
+- 目录所有权：`CODEOWNERS` 已启用三人所有权（shwaron / 0range03 / shuoyu04）。
 - 里程碑分工：见协作指南第 9 节。
 
 ---
@@ -396,6 +396,6 @@ def resource_path(rel: str) -> Path:
 6. **MVP 范围**：是否同意先做"1 区域 + 1 Boss + 6 武器"的垂直切片？
 7. **关卡设计**：固定关卡的白盒布局由我先出草稿和地图示意图，你再提修改意见，是否可以？
 8. **剧情基调**：当前是"悲凉但不绝望 + 三结局"的设计，主角真名"燧"与"以身代炉"真结局是否保留？
-9. **团队信息**：三位成员的 GitHub 用户名分别是什么？用于启用 CODEOWNERS、分支保护与任务分配。
+9. **团队信息**：已确认 shwaron = A 引擎、0range03 = B 玩法、shuoyu04 = C 叙事；CODEOWNERS 与 main 分支保护均已启用。
 
 确认后，下一步将进入 **M1 原型阶段**：搭建主循环、场景管理、玩家移动与练习场，不直接开始堆内容。

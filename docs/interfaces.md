@@ -1,6 +1,6 @@
 # 《余烬回环》模块接口与数据契约
 
-> 版本：v0.5
+> 版本：v0.7
 > 更新日期：2026-11-18
 > 相关文档：[分工协作指南](collaboration.md) · [总览与技术](../GAME_DESIGN.md) · [机制](mechanics.md) · [场景](scenes.md) · [剧情](story.md)
 
@@ -80,8 +80,10 @@ def rebind(action: str, binding) -> None: ...
 
 ```text
 move_left, move_right, jump, dash, attack, offhand,
-skill1, skill2, interact, swap, map, pause
+skill1, skill2, interact, swap, map, pause, down
 ```
+
+`down`（S / ↓）用于单向平台下穿，M1 新增，待三人评审确认。
 
 ### 1.5 SaveManager
 
@@ -114,6 +116,25 @@ meta 结构（schema_version 必填）：
 - `Camera`：跟随、死区、边界钳制、震动；B 调用，C 不直接操作。
 - `AudioManager`：`play_sfx(id)`、`play_bgm(id)`、`stop_bgm()`；B/C 通过 id 调用。
 - `Timer`：固定步长累加器；A 内部使用。
+
+### 1.7 Animator（M2 新增）
+
+```python
+class Animator:
+    def play(self, name: str, restart: bool = False) -> None: ...
+    def update(self, dt: float) -> None: ...
+    @property
+    def current(self) -> str: ...
+    @property
+    def frame_index(self) -> int: ...
+    @property
+    def finished(self) -> bool: ...
+    def draw(self, surface, topleft, facing: int) -> None: ...
+```
+
+- 玩家/敌人在 `update` 末尾按状态优先级调用 `play`，再 `update(dt)`；顿帧/暂停时动画随逻辑冻结。
+- 动作分类、优先级与帧事件详见 [动画引擎设计](animation.md)。
+- 缺片段时回退 `idle`；B/C 不直接绘制角色，也不自行推进帧。
 
 ---
 
@@ -161,9 +182,20 @@ meta 结构（schema_version 必填）：
 | hitbox | [w, h] | 攻击框 |
 | windup_ms / active_ms / recovery_ms | number | 帧窗口 |
 | knockback | number | 击退 |
+| max_level | number | 等级上限（默认 5；M2 新增） |
+| level_scale | number | 每级伤害增量（默认 0.1；M2 新增） |
+| scaling | object[] | 属性绑定 `{stat, max_bonus}`，stat 为 missing_hp/hp/stamina/mana（M2 新增） |
 | tags | string[] | melee/ranged/starter 等 |
 
-示例见 [机制文档](mechanics.md) 3.8。
+运行时武器实例另带 `id` 与 `level`（不写入 JSON）。伤害计算由 `game/systems/weapons.py` 的 `weapon_damage(weapon, player)` 提供：
+
+```text
+伤害 = base_damage × (1 + level_scale × (level − 1)) × (1 + Σ max_bonus × 属性比例)
+```
+
+武器比例定义：`missing_hp = 1 − hp/max_hp`，`hp = hp/max_hp`，`stamina/mana = 当前/上限`。
+
+示例见 [武器系统](weapons.md)。
 
 ### 3.2 skills.json
 
@@ -173,7 +205,9 @@ meta 结构（schema_version 必填）：
 | name_key / desc_key | string | 本地化 key |
 | type | string | aoe/dash/dot/control/summon/buff |
 | cooldown | number | 秒 |
+| mana_cost | number | 蓝条消耗（M2 新增） |
 | damage | number | 基础伤害（可为 0） |
+| radius | number | AOE 半径（像素，非 AOE 技能可省略；M2 新增） |
 | effects | object[] | 附加状态/位移/召唤参数 |
 | rarity | string | common/fine/rare/epic/legendary |
 | tags | string[] | 分类标签 |
@@ -280,6 +314,22 @@ meta 结构（schema_version 必填）：
 - 缺失 key 回退到 zh_CN，并记录警告。
 - key 命名：`domain.object.field`，如 `weapon.broken_sword.name`。
 
+### 3.10 animations.json
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| schema_version | number | 必填 |
+| player / enemies | object | 实体动画集合；`enemies` 键为 enemy_id |
+| origin | [dx, dy] | 帧左上角相对实体碰撞框左上角的偏移 |
+| clips | object | 动作 id → 片段 |
+| clips.*.sheet | string | 相对 `assets/` 的横向条带图路径 |
+| clips.*.frames | number | 帧数（图片宽度等分） |
+| clips.*.fps | number | 播放帧率 |
+| clips.*.loop | bool | 是否循环；非循环停在末帧 |
+| clips.*.events | object[] | 帧事件 `{frame, name}`，可选 |
+
+规则见 [动画引擎设计](animation.md)；占位帧为火柴人骨骼风格，由 `tools/gen_placeholder_sprites.py` 生成，替换正式素材须保持路径与帧数。
+
 ---
 
 ## 4. 关卡数据契约（Tiled）
@@ -321,11 +371,20 @@ Run（B）向 UI（C）提供只读状态字典，C 不直接修改玩法状态�
 hud_state = {
     "hp": int,
     "max_hp": int,
+    "stamina": {"value": float, "max": float},
+    "mana": {"value": float, "max": float},
     "potions": int,
     "embers": int,
     "fire_seeds": int,
     "skills": [{"id": str, "cooldown": float, "ready": bool}],
-    "weapon": {"id": str, "name_key": str, "rarity": str},
+    "weapon": {
+        "id": str,
+        "name_key": str,
+        "rarity": str,
+        "level": int,
+        "damage": float,
+        "scaling_bonus": float,
+    },
     "buffs": [{"id": str, "stacks": int}],
     "room": {"id": str, "biome": str},
 }
@@ -377,3 +436,7 @@ hud_state = {
 | 版本 | 日期 | 变更 |
 | --- | --- | --- |
 | v0.5 | 2026-11-18 | 初版：核心 API、事件、数据、关卡、UI、剧情标记契约 |
+| v0.6 | 2026-11-18 | skills.json 增加 mana_cost/radius；HUD 状态增加体力/蓝条（待三人评审） |
+| v0.7 | 2026-11-18 | 新增 Animator 接口与 animations.json 契约；占位像素帧生成器（待三人评审） |
+| v0.8 | 2026-11-18 | weapons.json 增加 max_level/level_scale/scaling；weapon_damage 计算与原语；HUD weapon 增加 level/damage/scaling_bonus（待三人评审） |
+| v0.9 | 2026-11-18 | 玩家攻击动画片段改为 `attack_<class>_windup/active/recovery`（5 类共 15 个）；weapon 的 class 决定动作模组（待三人评审） |

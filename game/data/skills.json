@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "skills": {
+    "ember_burst": {
+      "name_key": "skill.ember_burst.name",
+      "desc_key": "skill.ember_burst.desc",
+      "type": "aoe",
+      "cooldown": 8,
+      "mana_cost": 25,
+      "damage": 22,
+      "radius": 46,
+      "knockback": 160,
+      "effects": [
+        {"status": "burn", "duration": 2.0, "potency": 3.0, "max_stacks": 1}
+      ],
+      "rarity": "common",
+      "tags": ["fire", "starter"]
+    }
+  }
+}

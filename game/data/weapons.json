@@ -1,0 +1,123 @@
+{
+  "schema_version": 2,
+  "weapons": {
+    "worn_flame_blade": {
+      "name_key": "weapon.worn_flame_blade.name",
+      "class": "sword",
+      "base_damage": 12,
+      "attack_speed": 1.0,
+      "combo": [1.0],
+      "hitbox": [30, 26],
+      "windup_ms": 50,
+      "active_ms": 80,
+      "recovery_ms": 140,
+      "knockback": 120,
+      "max_level": 5,
+      "level_scale": 0.1,
+      "scaling": [],
+      "tags": ["melee", "starter"]
+    },
+    "ash_daggers": {
+      "name_key": "weapon.ash_daggers.name",
+      "class": "dagger",
+      "base_damage": 7,
+      "attack_speed": 1.35,
+      "combo": [1.0, 1.0, 1.45],
+      "hitbox": [22, 18],
+      "windup_ms": 30,
+      "active_ms": 60,
+      "recovery_ms": 90,
+      "knockback": 60,
+      "max_level": 5,
+      "level_scale": 0.1,
+      "scaling": [],
+      "tags": ["melee", "fast"]
+    },
+    "bell_hammer": {
+      "name_key": "weapon.bell_hammer.name",
+      "class": "hammer",
+      "base_damage": 22,
+      "attack_speed": 0.7,
+      "combo": [1.0, 1.2],
+      "hitbox": [38, 32],
+      "windup_ms": 130,
+      "active_ms": 90,
+      "recovery_ms": 300,
+      "knockback": 260,
+      "max_level": 5,
+      "level_scale": 0.1,
+      "scaling": [],
+      "tags": ["melee", "heavy"]
+    },
+    "rift_spear": {
+      "name_key": "weapon.rift_spear.name",
+      "class": "spear",
+      "base_damage": 10,
+      "attack_speed": 0.95,
+      "combo": [1.0, 1.0, 1.5],
+      "hitbox": [46, 18],
+      "windup_ms": 70,
+      "active_ms": 70,
+      "recovery_ms": 160,
+      "knockback": 100,
+      "max_level": 5,
+      "level_scale": 0.1,
+      "scaling": [],
+      "tags": ["melee", "reach"]
+    },
+    "desperate_edge": {
+      "name_key": "weapon.desperate_edge.name",
+      "class": "sword",
+      "base_damage": 9,
+      "attack_speed": 1.05,
+      "combo": [1.0, 1.15],
+      "hitbox": [44, 18],
+      "windup_ms": 55,
+      "active_ms": 75,
+      "recovery_ms": 130,
+      "knockback": 140,
+      "max_level": 5,
+      "level_scale": 0.1,
+      "scaling": [
+        {"stat": "missing_hp", "max_bonus": 0.8}
+      ],
+      "tags": ["melee", "special"]
+    },
+    "gale_daggers": {
+      "name_key": "weapon.gale_daggers.name",
+      "class": "dagger",
+      "base_damage": 7.5,
+      "attack_speed": 1.35,
+      "combo": [1.0, 1.0, 1.4],
+      "hitbox": [24, 18],
+      "windup_ms": 30,
+      "active_ms": 60,
+      "recovery_ms": 90,
+      "knockback": 60,
+      "max_level": 5,
+      "level_scale": 0.1,
+      "scaling": [
+        {"stat": "stamina", "max_bonus": 0.35}
+      ],
+      "tags": ["melee", "special", "fast"]
+    },
+    "ember_staff": {
+      "name_key": "weapon.ember_staff.name",
+      "class": "staff",
+      "base_damage": 8,
+      "attack_speed": 0.9,
+      "combo": [1.0],
+      "hitbox": [26, 26],
+      "windup_ms": 80,
+      "active_ms": 90,
+      "recovery_ms": 170,
+      "knockback": 80,
+      "max_level": 5,
+      "level_scale": 0.1,
+      "scaling": [
+        {"stat": "mana", "max_bonus": 0.5}
+      ],
+      "tags": ["melee", "special", "arcane"]
+    }
+  }
+}
