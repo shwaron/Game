@@ -3,9 +3,29 @@ from types import SimpleNamespace
 import pygame
 
 from game import config
+from game.core.animation import AnimationClip
 from game.entities.player import Player
 
 DT = config.DT
+
+ANIM_NAMES = [
+    "idle",
+    "run",
+    "jump",
+    "fall",
+    "dash",
+    "attack_windup",
+    "attack_active",
+    "attack_recovery",
+    "parry",
+    "skill",
+    "hurt",
+    "death",
+]
+
+
+def make_anim_clips():
+    return {name: AnimationClip(name, "", 2, 10, True) for name in ANIM_NAMES}
 
 
 class FakeInput:
@@ -222,3 +242,49 @@ def test_poison_dot_accumulates_fractional_damage():
     player.status.apply("poison", 2.0, 4.0, max_stacks=1)
     step(player, inp, room, 60)
     assert player.health.hp < player.health.max_hp
+
+
+def test_animation_follows_movement_and_dash():
+    player = Player(100, 208, anim_clips=make_anim_clips())
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    assert player.anim.current == "idle"
+    inp.press("move_right")
+    step(player, inp, room, 3)
+    assert player.anim.current == "run"
+    inp.press("dash")
+    step(player, inp, room)
+    assert player.anim.current == "dash"
+
+
+def test_animation_follows_attack_phases_and_death():
+    player = Player(100, 208, anim_clips=make_anim_clips())
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    inp.press("attack")
+    step(player, inp, room)
+    assert player.anim.current == "attack_windup"
+    for _ in range(10):
+        step(player, inp, room)
+        if player.attack_phase == "active":
+            break
+    assert player.anim.current == "attack_active"
+    player.health.take_damage(999)
+    step(player, inp, room)
+    assert player.anim.current == "death"
+
+
+def test_animation_follows_hurt_and_parry():
+    player = Player(100, 208, anim_clips=make_anim_clips())
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    inp.press("offhand")
+    step(player, inp, room)
+    assert player.anim.current == "parry"
+    step(player, inp, room, 20)
+    player.take_hit(5, (200, 208), 0)
+    step(player, inp, room)
+    assert player.anim.current == "hurt"

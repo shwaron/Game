@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "player": {
+    "origin": [7, 2],
+    "clips": {
+      "idle": {"sheet": "sprites/player/idle.png", "frames": 4, "fps": 6, "loop": true},
+      "run": {"sheet": "sprites/player/run.png", "frames": 6, "fps": 12, "loop": true},
+      "jump": {"sheet": "sprites/player/jump.png", "frames": 1, "fps": 1, "loop": false},
+      "fall": {"sheet": "sprites/player/fall.png", "frames": 2, "fps": 8, "loop": true},
+      "dash": {"sheet": "sprites/player/dash.png", "frames": 3, "fps": 18, "loop": false},
+      "attack_windup": {"sheet": "sprites/player/attack_windup.png", "frames": 2, "fps": 40, "loop": false, "events": [{"frame": 0, "name": "swing_ready"}]},
+      "attack_active": {"sheet": "sprites/player/attack_active.png", "frames": 4, "fps": 50, "loop": false, "events": [{"frame": 0, "name": "swing_hit"}]},
+      "attack_recovery": {"sheet": "sprites/player/attack_recovery.png", "frames": 4, "fps": 29, "loop": false},
+      "parry": {"sheet": "sprites/player/parry.png", "frames": 2, "fps": 13, "loop": false},
+      "skill": {"sheet": "sprites/player/skill.png", "frames": 4, "fps": 16, "loop": false},
+      "hurt": {"sheet": "sprites/player/hurt.png", "frames": 2, "fps": 8, "loop": false},
+      "death": {"sheet": "sprites/player/death.png", "frames": 4, "fps": 8, "loop": false}
+    }
+  },
+  "enemies": {
+    "ash_crawler": {
+      "origin": [2, 2],
+      "clips": {
+        "idle": {"sheet": "sprites/enemies/ash_crawler/idle.png", "frames": 2, "fps": 4, "loop": true},
+        "walk": {"sheet": "sprites/enemies/ash_crawler/walk.png", "frames": 4, "fps": 8, "loop": true},
+        "windup": {"sheet": "sprites/enemies/ash_crawler/windup.png", "frames": 2, "fps": 20, "loop": true},
+        "active": {"sheet": "sprites/enemies/ash_crawler/active.png", "frames": 2, "fps": 20, "loop": true},
+        "recovery": {"sheet": "sprites/enemies/ash_crawler/recovery.png", "frames": 2, "fps": 10, "loop": true},
+        "stagger": {"sheet": "sprites/enemies/ash_crawler/stagger.png", "frames": 2, "fps": 8, "loop": true},
+        "death": {"sheet": "sprites/enemies/ash_crawler/death.png", "frames": 3, "fps": 8, "loop": false}
+      }
+    },
+    "bone_archer": {
+      "origin": [2, 2],
+      "clips": {
+        "idle": {"sheet": "sprites/enemies/bone_archer/idle.png", "frames": 2, "fps": 4, "loop": true},
+        "walk": {"sheet": "sprites/enemies/bone_archer/walk.png", "frames": 4, "fps": 8, "loop": true},
+        "windup": {"sheet": "sprites/enemies/bone_archer/windup.png", "frames": 2, "fps": 20, "loop": true},
+        "active": {"sheet": "sprites/enemies/bone_archer/active.png", "frames": 2, "fps": 20, "loop": true},
+        "recovery": {"sheet": "sprites/enemies/bone_archer/recovery.png", "frames": 2, "fps": 10, "loop": true},
+        "stagger": {"sheet": "sprites/enemies/bone_archer/stagger.png", "frames": 2, "fps": 8, "loop": true},
+        "death": {"sheet": "sprites/enemies/bone_archer/death.png", "frames": 3, "fps": 8, "loop": false}
+      }
+    }
+  }
+}

@@ -3,9 +3,24 @@ from types import SimpleNamespace
 import pygame
 
 from game.components.health import Health
+from game.core.animation import AnimationClip
 from game.entities.enemy import ChaserEnemy, ShooterEnemy
 
 DT = 1 / 60
+
+ENEMY_ANIM_NAMES = [
+    "idle",
+    "walk",
+    "windup",
+    "active",
+    "recovery",
+    "stagger",
+    "death",
+]
+
+
+def make_enemy_anims():
+    return {name: AnimationClip(name, "", 2, 10, True) for name in ENEMY_ANIM_NAMES}
 
 CRAWLER = {
     "hp": 30,
@@ -119,3 +134,23 @@ def test_enemy_dies_at_zero_hp():
     enemy.on_hit(999, (220, 208), 0)
     assert not enemy.health.alive
     assert enemy.state == "dead"
+
+
+def test_enemy_animation_follows_states():
+    room = make_room()
+    enemy = ChaserEnemy(
+        "ash_crawler", 300, 200, CRAWLER, room, make_enemy_anims()
+    )
+    player = make_player(200)
+    for _ in range(5):
+        enemy.update(DT, player)
+    assert enemy.anim.current == "walk"
+    enemy._start_attack()
+    enemy.update(DT, player)
+    assert enemy.anim.current == "windup"
+    enemy.on_hit(5, (220, 208), 0)
+    enemy.update(DT, player)
+    assert enemy.anim.current == "stagger"
+    enemy.on_hit(999, (220, 208), 0)
+    enemy.update(DT, player)
+    assert enemy.anim.current == "death"

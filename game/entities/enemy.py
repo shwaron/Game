@@ -4,12 +4,22 @@ from game import config
 from game.components.health import Health
 from game.components.physics import PhysicsBody
 from game.components.status_effects import StatusEffects
+from game.core.animation import Animator
 from game.systems.combat import TEAM_ENEMY
 
 
 class Enemy:
-    def __init__(self, enemy_id: str, x: float, y: float, data: dict, room) -> None:
+    def __init__(
+        self,
+        enemy_id: str,
+        x: float,
+        y: float,
+        data: dict,
+        room,
+        anim_clips: dict | None = None,
+    ) -> None:
         self.enemy_id = enemy_id
+        self.anim = Animator(anim_clips) if anim_clips else None
         self.data = data
         self.room = room
         self.team = TEAM_ENEMY
@@ -67,6 +77,7 @@ class Enemy:
             self.state = "dead"
             self.dead_timer -= dt
             self._physics(dt)
+            self._update_animation(dt)
             return
 
         dot = self.status.update(dt)
@@ -97,6 +108,23 @@ class Enemy:
         if self.state in ("windup", "active", "recovery"):
             self.body.vel_x = 0.0
         self._physics(dt)
+        self._update_animation(dt)
+
+    def _update_animation(self, dt: float) -> None:
+        if not self.anim:
+            return
+        if not self.health.alive:
+            name = "death"
+        elif self.state == "stagger":
+            name = "stagger"
+        elif self.state in ("windup", "active", "recovery"):
+            name = self.state
+        elif abs(self.body.vel_x) > 5:
+            name = "walk"
+        else:
+            name = "idle"
+        self.anim.play(name)
+        self.anim.update(dt)
 
     def _advance_attack(self, dt: float) -> None:
         self.state_timer -= dt
@@ -133,12 +161,17 @@ class Enemy:
         r = self.body.rect
         if self.state == "dead" and self.dead_timer <= 0:
             return
-        color = self.body_color()
-        if self.hit_flash > 0:
-            color = c["dummy_flash"]
-        pygame.draw.rect(surface, color, r)
-        eye_x = r.right - 6 if self.facing > 0 else r.left + 3
-        pygame.draw.rect(surface, c["player_eye"], (eye_x, r.y + 8, 3, 3))
+        if self.anim:
+            self.anim.draw(surface, r.topleft, self.facing)
+            if self.hit_flash > 0:
+                pygame.draw.rect(surface, c["dummy_flash"], r.inflate(2, 2), 1)
+        else:
+            color = self.body_color()
+            if self.hit_flash > 0:
+                color = c["dummy_flash"]
+            pygame.draw.rect(surface, color, r)
+            eye_x = r.right - 6 if self.facing > 0 else r.left + 3
+            pygame.draw.rect(surface, c["player_eye"], (eye_x, r.y + 8, 3, 3))
 
         if self.state == "windup":
             w, h = self.attack.get("hitbox", [26, 24])

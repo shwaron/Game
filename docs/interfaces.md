@@ -1,6 +1,6 @@
 # 《余烬回环》模块接口与数据契约
 
-> 版本：v0.6
+> 版本：v0.7
 > 更新日期：2026-11-18
 > 相关文档：[分工协作指南](collaboration.md) · [总览与技术](../GAME_DESIGN.md) · [机制](mechanics.md) · [场景](scenes.md) · [剧情](story.md)
 
@@ -116,6 +116,25 @@ meta 结构（schema_version 必填）：
 - `Camera`：跟随、死区、边界钳制、震动；B 调用，C 不直接操作。
 - `AudioManager`：`play_sfx(id)`、`play_bgm(id)`、`stop_bgm()`；B/C 通过 id 调用。
 - `Timer`：固定步长累加器；A 内部使用。
+
+### 1.7 Animator（M2 新增）
+
+```python
+class Animator:
+    def play(self, name: str, restart: bool = False) -> None: ...
+    def update(self, dt: float) -> None: ...
+    @property
+    def current(self) -> str: ...
+    @property
+    def frame_index(self) -> int: ...
+    @property
+    def finished(self) -> bool: ...
+    def draw(self, surface, topleft, facing: int) -> None: ...
+```
+
+- 玩家/敌人在 `update` 末尾按状态优先级调用 `play`，再 `update(dt)`；顿帧/暂停时动画随逻辑冻结。
+- 动作分类、优先级与帧事件详见 [动画引擎设计](animation.md)。
+- 缺片段时回退 `idle`；B/C 不直接绘制角色，也不自行推进帧。
 
 ---
 
@@ -284,6 +303,22 @@ meta 结构（schema_version 必填）：
 - 缺失 key 回退到 zh_CN，并记录警告。
 - key 命名：`domain.object.field`，如 `weapon.broken_sword.name`。
 
+### 3.10 animations.json
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| schema_version | number | 必填 |
+| player / enemies | object | 实体动画集合；`enemies` 键为 enemy_id |
+| origin | [dx, dy] | 帧左上角相对实体碰撞框左上角的偏移 |
+| clips | object | 动作 id → 片段 |
+| clips.*.sheet | string | 相对 `assets/` 的横向条带图路径 |
+| clips.*.frames | number | 帧数（图片宽度等分） |
+| clips.*.fps | number | 播放帧率 |
+| clips.*.loop | bool | 是否循环；非循环停在末帧 |
+| clips.*.events | object[] | 帧事件 `{frame, name}`，可选 |
+
+规则见 [动画引擎设计](animation.md)；占位帧由 `tools/gen_placeholder_sprites.py` 生成，替换正式素材须保持路径与帧数。
+
 ---
 
 ## 4. 关卡数据契约（Tiled）
@@ -384,3 +419,4 @@ hud_state = {
 | --- | --- | --- |
 | v0.5 | 2026-11-18 | 初版：核心 API、事件、数据、关卡、UI、剧情标记契约 |
 | v0.6 | 2026-11-18 | skills.json 增加 mana_cost/radius；HUD 状态增加体力/蓝条（待三人评审） |
+| v0.7 | 2026-11-18 | 新增 Animator 接口与 animations.json 契约；占位像素帧生成器（待三人评审） |

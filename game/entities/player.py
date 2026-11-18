@@ -5,6 +5,7 @@ from game.components.health import Health
 from game.components.physics import PhysicsBody
 from game.components.resources import ResourcePool
 from game.components.status_effects import StatusEffects
+from game.core.animation import Animator
 from game.systems.combat import TEAM_PLAYER
 
 DEFAULT_WEAPON = {
@@ -24,10 +25,17 @@ HURT_IFRAMES = 0.8
 
 
 class Player:
-    def __init__(self, x: float, y: float, weapon: dict | None = None) -> None:
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        weapon: dict | None = None,
+        anim_clips: dict | None = None,
+    ) -> None:
         self.body = PhysicsBody(x, y, *config.PLAYER_SIZE)
         self.team = TEAM_PLAYER
         self.weapon = weapon or DEFAULT_WEAPON
+        self.anim = Animator(anim_clips) if anim_clips else None
         self.health = Health(100)
         self.stamina = ResourcePool(
             config.STAMINA_MAX, config.STAMINA_REGEN, config.STAMINA_REGEN_DELAY
@@ -50,6 +58,7 @@ class Player:
         self.parry_timer = 0.0
         self.parry_cooldown = 0.0
         self.counter_timer = 0.0
+        self.cast_timer = 0.0
         self.attack_phase: str | None = None
         self.attack_timer = 0.0
         self.attack_hit = False
@@ -126,6 +135,7 @@ class Player:
         self.parry_timer = max(0.0, self.parry_timer - dt)
         self.parry_cooldown = max(0.0, self.parry_cooldown - dt)
         self.counter_timer = max(0.0, self.counter_timer - dt)
+        self.cast_timer = max(0.0, self.cast_timer - dt)
         self.stamina.update(dt)
         self.mana.update(dt)
         if not self.body.on_ground:
@@ -148,6 +158,9 @@ class Player:
                 self.body.vel_y + config.GRAVITY * dt, config.MAX_FALL
             )
             self.body.move_and_collide(dt, room.solids, room.one_ways)
+            if self.anim:
+                self.anim.play("death")
+                self.anim.update(dt)
             return
 
         stunned = self.status.stunned
@@ -261,6 +274,33 @@ class Player:
         else:
             self.state = "idle"
 
+        if self.anim:
+            self.anim.play(self._animation_name())
+            self.anim.update(dt)
+
+    def _animation_name(self) -> str:
+        if not self.health.alive:
+            return "death"
+        if self.hurt_timer > 0:
+            return "hurt"
+        if self.dash_time > 0:
+            return "dash"
+        if self.cast_timer > 0:
+            return "skill"
+        if self.attack_phase == "windup":
+            return "attack_windup"
+        if self.attack_phase == "active":
+            return "attack_active"
+        if self.attack_phase == "recovery":
+            return "attack_recovery"
+        if self.parry_timer > 0:
+            return "parry"
+        if not self.body.on_ground:
+            return "jump" if self.body.vel_y < 0 else "fall"
+        if abs(self.body.vel_x) > 5:
+            return "run"
+        return "idle"
+
     def _update_attack(self, dt: float) -> None:
         if self.attack_phase is None:
             if self.attack_buffer > 0 and self.dash_time <= 0:
@@ -296,11 +336,14 @@ class Player:
         if self.invuln > 0 and self.hurt_timer <= 0 and int(self.invuln * 20) % 2 == 0:
             return
         r = self.body.rect
-        body_color = c["dummy_flash"] if self.hurt_timer > 0 else c["player"]
-        pygame.draw.rect(surface, body_color, r)
-        pygame.draw.rect(surface, c["ember"], (r.x, r.y + 6, r.w, 3))
-        eye_x = r.right - 5 if self.facing > 0 else r.left + 2
-        pygame.draw.rect(surface, c["player_eye"], (eye_x, r.y + 10, 3, 3))
+        if self.anim:
+            self.anim.draw(surface, r.topleft, self.facing)
+        else:
+            body_color = c["dummy_flash"] if self.hurt_timer > 0 else c["player"]
+            pygame.draw.rect(surface, body_color, r)
+            pygame.draw.rect(surface, c["ember"], (r.x, r.y + 6, r.w, 3))
+            eye_x = r.right - 5 if self.facing > 0 else r.left + 2
+            pygame.draw.rect(surface, c["player_eye"], (eye_x, r.y + 10, 3, 3))
 
         if self.counter_timer > 0:
             pygame.draw.rect(surface, c["slash"], r.inflate(4, 4), 1)
@@ -311,6 +354,6 @@ class Player:
         hitbox = self.attack_hitbox
         if hitbox:
             pygame.draw.rect(surface, c["slash"], hitbox)
-        elif self.attack_phase == "windup":
+        elif self.attack_phase == "windup" and not self.anim:
             spark_x = r.right if self.facing > 0 else r.left - 4
             pygame.draw.rect(surface, c["ember"], (spark_x, r.centery - 2, 4, 4))

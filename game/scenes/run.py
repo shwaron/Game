@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pygame
 
 from game import config
+from game.core.animation import build_clips
 from game.core.assets import load_json
 from game.core.scene_manager import Scene
 from game.entities.enemy import ChaserEnemy, ShooterEnemy
@@ -47,6 +48,12 @@ class PracticeScene(Scene):
         self.cast_id = 0
         self.enemy_data = load_json("game/data/enemies.json")["enemies"]
         self.loot_tables = load_tables(load_json("game/data/loot_tables.json"))
+        anim_data = load_json("game/data/animations.json")
+        self.player_anims = build_clips(anim_data["player"])
+        self.enemy_anims = {
+            enemy_id: build_clips(section)
+            for enemy_id, section in anim_data["enemies"].items()
+        }
         self.rng = random.Random()
         self.combat = CombatSystem(self.rng)
         self.player = None
@@ -69,14 +76,24 @@ class PracticeScene(Scene):
 
     def _reset_arena(self) -> None:
         self.combat = CombatSystem(self.rng)
-        self.player = Player(48, 200, self.weapon)
+        self.player = Player(48, 200, self.weapon, self.player_anims)
         self.combat.register(self.player)
         self.enemies = [
             ChaserEnemy(
-                "ash_crawler", 300, 200, self.enemy_data["ash_crawler"], self.room
+                "ash_crawler",
+                300,
+                200,
+                self.enemy_data["ash_crawler"],
+                self.room,
+                self.enemy_anims["ash_crawler"],
             ),
             ShooterEnemy(
-                "bone_archer", 430, 200, self.enemy_data["bone_archer"], self.room
+                "bone_archer",
+                430,
+                200,
+                self.enemy_data["bone_archer"],
+                self.room,
+                self.enemy_anims["bone_archer"],
             ),
         ]
         for enemy in self.enemies:
@@ -279,6 +296,7 @@ class PracticeScene(Scene):
         if not self.player.mana.spend(skill["mana_cost"]):
             return
         self.skill_cooldowns["ember_burst"] = skill["cooldown"]
+        self.player.cast_timer = 0.25
         self.cast_id += 1
         radius = skill["radius"]
         cx, cy = self.player.rect.center
