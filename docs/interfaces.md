@@ -1,7 +1,8 @@
 # 《余烬回环》模块接口与数据契约
 
-> 版本：v0.11
+> 版本：v0.12
 > 更新日期：2026-11-18
+> v0.12 调整：新增 `chest.opened` / `manual.learned` 事件、秘籍 HUD 状态；攻击动画改为逐武器片段
 > v0.11 调整：剧情标记与对话示例改为武侠主题（灯婆、货郎、焦面掌柜）
 > 相关文档：[分工协作指南](collaboration.md) · [总览与技术](../GAME_DESIGN.md) · [机制](mechanics.md) · [场景](scenes.md) · [剧情](story.md)
 
@@ -147,6 +148,9 @@ class Animator:
 | `player.died` | `{run_id, depth, cause}` | B | A（结算）、C（死亡场景） |
 | `enemy.killed` | `{enemy_id, position, loot_table}` | B | B（掉落）、C（图鉴） |
 | `room.entered` | `{room_id, biome, room_type}` | B | C（小地图/提示） |
+| `anchor.lit` | `{room}` | B（房间/灯锚） | C（舆图通知/音效） |
+| `chest.opened` | `{room, weapon, level}` | B（宝箱/房间） | C（开箱提示/音效） |
+| `manual.learned` | `{stat, value}` | B（秘籍选择） | C（提示/面板刷新） |
 | `loot.picked` | `{item_id, rarity, slot}` | B | C（拾取提示/背包） |
 | `run.ended` | `{outcome, embers, depth}` | B | A（存档）、C（结算 UI） |
 | `boss.phase` | `{boss_id, phase}` | B | C（演出/台词） |
@@ -331,6 +335,8 @@ class Animator:
 
 规则见 [动画引擎设计](animation.md)；主角占位帧为武侠风黑衣剑客像素造型（52×40，`origin [17,2]`），敌人为火柴人骨骼占位，均由 `tools/gen_placeholder_sprites.py` 生成；替换正式素材须保持路径与帧数。
 
+攻击片段优先使用 `attack_<weapon_id>_windup/active/recovery`，六把初始武器各一套，缺失时回退 `attack_<class>_*`；跃击为 `plunge_<weapon_id>`，缺失回退 `fall`。新增武器须同步提供三类片段或在数据校验中登记回退。
+
 ---
 
 ## 4. 关卡数据契约（Tiled）
@@ -387,9 +393,13 @@ hud_state = {
         "scaling_bonus": float,
     },
     "buffs": [{"id": str, "stacks": int}],
+    "manual": {"attack": int, "hp": int, "armor": int},
     "room": {"id": str, "biome": str},
 }
 ```
+
+- `manual` 为本局秘籍累计加成，死亡/重开后清零；HUD 在武器栏下方显示「秘籍 攻+X 血+X 御+X」。
+- 宝箱开启状态按 `(room_id, x)` 记录在本局，不写入存档；秘籍选择期间游戏暂停。
 
 背包/装备对比数据结构由 C 定义，B 提供物品实例数据（id、词缀、数值）。
 
@@ -442,3 +452,5 @@ hud_state = {
 | v0.8 | 2026-11-18 | weapons.json 增加 max_level/level_scale/scaling；weapon_damage 计算与原语；HUD weapon 增加 level/damage/scaling_bonus（待三人评审） |
 | v0.9 | 2026-11-18 | 玩家攻击动画片段改为 `attack_<class>_windup/active/recovery`（5 类共 15 个）；weapon 的 class 决定动作模组（待三人评审） |
 | v0.10 | 2026-11-18 | 主角动画帧扩为 52×40、origin [17,2]；占位主角改为武侠风像素造型；攻击命中框调试绘制由 `config.DEBUG_HITBOXES` 控制（默认关闭） |
+| v0.11 | 2026-11-18 | 剧情标记与对话示例改为武侠主题（灯婆、货郎、焦面掌柜） |
+| v0.12 | 2026-11-18 | 新增 `chest.opened` / `manual.learned` 事件；HUD 状态增加 `manual`；攻击动画改为 `attack_<weapon_id>_*` 并保留类别回退；新增 `plunge_<weapon_id>` |

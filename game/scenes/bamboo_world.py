@@ -7,7 +7,7 @@ scene streams one room at a time through a camera-clamped world surface.
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pygame
 
@@ -1510,6 +1510,26 @@ class Exit:
 
 
 @dataclass
+class Anchor:
+    room_id: str
+    x: int
+    entry: str = "anchor"
+
+
+@dataclass
+class Chest:
+    room_id: str
+    x: int
+    y: int
+    weapon_id: str
+    embers: int = 6
+
+    @property
+    def rect(self) -> pygame.Rect:
+        return pygame.Rect(self.x, self.y, 20, 16)
+
+
+@dataclass
 class Room:
     room_id: str
     title_key: str
@@ -1524,6 +1544,8 @@ class Room:
     spawns: list[dict]
     loot: list[tuple[str, float, float]]
     map_pos: tuple[int, int]
+    anchors: list[Anchor] = field(default_factory=list)
+    chests: list[Chest] = field(default_factory=list)
 
 
 START_ROOM = "shrine"
@@ -1566,6 +1588,7 @@ def _room(
     loot=(),
     map_pos=(0, 0),
     art_kwargs=None,
+    chests=(),
 ) -> Room:
     ways = [pygame.Rect(*way) for way in one_ways]
     solids = [
@@ -1592,7 +1615,19 @@ def _room(
         spawns=list(spawns),
         loot=list(loot),
         map_pos=map_pos,
+        chests=list(chests),
     )
+
+
+def _place_anchor(room: Room, x: int) -> None:
+    room.anchors.append(Anchor(room.room_id, x))
+    room.entries["anchor"] = (x - 28, FLOOR_Y - 38)
+
+
+def _place_chest(
+    room: Room, x: int, y: int, weapon_id: str, embers: int = 6
+) -> None:
+    room.chests.append(Chest(room.room_id, x, y, weapon_id, embers))
 
 
 def build_world() -> dict[str, Room]:
@@ -1641,6 +1676,7 @@ def build_world() -> dict[str, Room]:
             ("spikes", (500, 238, 28, 8), 15),
             ("poison", (680, 240, 40, 6), 4.0),
         ],
+        loot=[("manual", 605, 126)],
         map_pos=(1, 0),
         art_kwargs={"ground": "path", "moon_x": 300},
     )
@@ -1685,9 +1721,10 @@ def build_world() -> dict[str, Room]:
         ],
         hazards=[
             ("spikes", (560, 238, 32, 8), 15),
-            ("poison", (900, 240, 40, 6), 4.0),
+            ("poison", (1100, 240, 40, 6), 4.0),
             ("poison", (1200, 240, 30, 6), 4.0),
         ],
+        loot=[("manual", 690, 88)],
         map_pos=(2, 0),
         art_kwargs={"stairs": True},
     )
@@ -1717,6 +1754,7 @@ def build_world() -> dict[str, Room]:
             _spawn("paper_runner", 720, 124),
         ],
         hazards=[("spikes", (620, 238, 24, 8), 15)],
+        chests=[Chest("inn_upper", 880, 204 - 16, "desperate_edge", 6)],
         map_pos=(2, -1),
         art_kwargs={"upper": True},
     )
@@ -1753,6 +1791,7 @@ def build_world() -> dict[str, Room]:
             ("spikes", (620, 238, 30, 8), 15),
             ("poison", (280, 240, 40, 6), 4.0),
         ],
+        loot=[("manual", 150, 126)],
         map_pos=(3, 0),
         art_kwargs={
             "ground": "yard",
@@ -1796,6 +1835,7 @@ def build_world() -> dict[str, Room]:
             ("spikes", (540, 238, 28, 8), 15),
             ("poison", (880, 240, 40, 6), 4.0),
         ],
+        loot=[("manual", 760, 88)],
         map_pos=(2, 1),
     )
 
@@ -1818,6 +1858,7 @@ def build_world() -> dict[str, Room]:
             ("fire_seed", 540, 220),
             ("potion", 660, 220),
         ],
+        chests=[Chest("cellar_vault", 700, FLOOR_Y - 16, "bell_hammer", 8)],
         map_pos=(3, 1),
     )
 
@@ -1853,6 +1894,8 @@ def build_world() -> dict[str, Room]:
             ("spikes", (520, 238, 30, 8), 15),
             ("poison", (760, 240, 40, 6), 4.0),
         ],
+        loot=[("manual", 990, 72)],
+        chests=[Chest("ridge_fork", 870, 96 - 16, "rift_spear", 6)],
         map_pos=(4, 0),
         art_kwargs={"ground": "path", "moon_x": 760, "props": [("signpost", 950)]},
     )
@@ -1869,10 +1912,8 @@ def build_world() -> dict[str, Room]:
             _spawn("paper_runner", 300, 212),
             _spawn("wine_imp", 520, 212),
         ],
-        hazards=[
-            ("poison", (260, 240, 50, 6), 4.0),
-            ("poison", (430, 240, 40, 6), 4.0),
-        ],
+        hazards=[("poison", (250, 240, 40, 6), 4.0)],
+        chests=[Chest("valley_gate", 140, FLOOR_Y - 16, "worn_flame_blade", 6)],
         map_pos=(5, 1),
     )
 
@@ -1888,9 +1929,22 @@ def build_world() -> dict[str, Room]:
             _spawn("paper_runner", 300, 212),
             _spawn("wine_imp", 560, 212),
         ],
-        hazards=[("spikes", (360, 238, 30, 8), 15)],
+        hazards=[("spikes", (300, 238, 30, 8), 15)],
+        loot=[("manual", 430, 152)],
+        chests=[Chest("temple_gate", 150, FLOOR_Y - 16, "gale_daggers", 6)],
         map_pos=(5, -1),
     )
+
+    for room_id, x in (
+        ("shrine", 140),
+        ("inn_front", 1000),
+        ("backyard", 840),
+        ("cellar_upper", 1100),
+        ("ridge_fork", 640),
+        ("valley_gate", 390),
+        ("temple_gate", 450),
+    ):
+        _place_anchor(rooms[room_id], x)
 
     return rooms
 

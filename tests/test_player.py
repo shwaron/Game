@@ -318,6 +318,115 @@ def test_attack_animation_uses_weapon_class():
         assert player.anim.current == clip, (weapon_class, player.anim.current)
 
 
+def test_fall_damage_uses_safe_height():
+    player = Player(100, 208)
+    player._apply_fall_damage(config.FALL_SAFE_HEIGHT)
+    assert player.health.hp == player.health.max_hp
+    player._apply_fall_damage(config.FALL_SAFE_HEIGHT + 25)
+    expected = int(round(25 * config.FALL_DAMAGE_SCALE))
+    assert player.health.hp == player.health.max_hp - expected
+
+
+def test_plunge_triggers_only_when_dropping_through_platform():
+    room = SimpleNamespace(
+        solids=[pygame.Rect(0, 246, 480, 24)],
+        one_ways=[pygame.Rect(120, 150, 96, 8)],
+    )
+    player = Player(140, 112)
+    inp = FakeInput()
+    step(player, inp, room, 2)
+    assert player.body.on_ground
+    assert player.body.ground_is_one_way
+
+    inp.press("down")
+    inp.press("jump")
+    step(player, inp, room)
+    assert player.plunging
+    assert player.state == "plunge"
+    assert player.plunge_hitbox is not None
+
+    landed = False
+    for _ in range(90):
+        step(player, inp, room)
+        if player.body.on_ground:
+            landed = player.plunge_landed
+            break
+    assert landed
+    assert player.health.hp == player.health.max_hp
+
+
+def test_plunge_does_not_trigger_from_midair_jump():
+    room = make_room()
+    player = Player(100, 208)
+    inp = FakeInput()
+    step(player, inp, room, 2)
+    inp.press("jump")
+    step(player, inp, room)
+    assert not player.body.on_ground
+    inp.press("down")
+    inp.press("jump")
+    step(player, inp, room)
+    assert not player.plunging
+    assert player.plunge_hitbox is None
+
+
+def test_plunge_hitbox_spans_below_feet():
+    player = Player(100, 208)
+    assert player.plunge_hitbox is None
+    player.plunging = True
+    hitbox = player.plunge_hitbox
+    assert hitbox is not None
+    assert hitbox.bottom > player.rect.bottom
+    assert hitbox.centerx == player.rect.centerx
+
+
+def test_manual_bonus_attack_adds_to_swing_power():
+    player = Player(100, 208)
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    player.bonus_attack = 3
+    inp.press("attack")
+    step(player, inp, room)
+    assert player.attack_power == player.weapon["base_damage"] + 3
+
+
+def make_weapon_anim_clips():
+    clips = make_anim_clips()
+    for phase in ("windup", "active", "recovery"):
+        name = f"attack_gale_daggers_{phase}"
+        clips[name] = AnimationClip(name, "", 2, 10, False)
+    clips["plunge_gale_daggers"] = AnimationClip("plunge_gale_daggers", "", 2, 10, False)
+    return clips
+
+
+def test_weapon_id_clips_override_class_clips():
+    weapon = {
+        "id": "gale_daggers",
+        "class": "dagger",
+        "hitbox": [24, 18],
+        "windup_ms": 30,
+        "active_ms": 60,
+        "recovery_ms": 90,
+        "knockback": 60,
+        "base_damage": 7.5,
+        "level": 1,
+        "level_scale": 0.1,
+        "scaling": [],
+    }
+    player = Player(100, 208, weapon, anim_clips=make_weapon_anim_clips())
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    inp.press("attack")
+    step(player, inp, room)
+    assert player.anim.current == "attack_gale_daggers_windup"
+    player.attack_phase = None
+    player.plunging = True
+    step(player, inp, room)
+    assert player.anim.current == "plunge_gale_daggers"
+
+
 def test_animation_follows_hurt_and_parry():
     player = Player(100, 208, anim_clips=make_anim_clips())
     inp = FakeInput()

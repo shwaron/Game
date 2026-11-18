@@ -49,6 +49,108 @@ HAIR_HI = (78, 68, 92)
 IRON = (122, 118, 138)
 IRON_DARK = (84, 80, 98)
 
+# Per-weapon palettes: each weapon restains the robe and its own weapon art so
+# every moveset reads as a different fighter rather than a recolored class.
+WEAPON_STYLES = {
+    "worn_flame_blade": {
+        "class": "sword",
+        "frames": {"windup": 2, "active": 4, "recovery": 4},
+        "remap": {
+            ROBE: (48, 36, 32),
+            ROBE_DARK: (32, 22, 20),
+            ROBE_LIGHT: (94, 64, 50),
+            SILVER: (236, 176, 104),
+            SILVER_DIM: (168, 112, 62),
+            BELT_METAL: (224, 150, 72),
+            STEEL: (226, 198, 168),
+            BOW: (72, 48, 36),
+            EMBER: (255, 126, 46),
+            SLASH: (255, 190, 96),
+        },
+    },
+    "desperate_edge": {
+        "class": "sword",
+        "frames": {"windup": 2, "active": 4, "recovery": 3},
+        "remap": {
+            ROBE: (54, 26, 32),
+            ROBE_DARK: (30, 14, 19),
+            ROBE_LIGHT: (104, 48, 56),
+            SILVER: (210, 96, 88),
+            SILVER_DIM: (140, 58, 56),
+            BELT_METAL: (188, 84, 70),
+            STEEL: (230, 138, 116),
+            BOW: (62, 30, 30),
+            EMBER: (220, 64, 52),
+            SLASH: (240, 120, 104),
+        },
+    },
+    "bell_hammer": {
+        "class": "hammer",
+        "frames": {"windup": 3, "active": 2, "recovery": 6},
+        "remap": {
+            ROBE: (52, 44, 32),
+            ROBE_DARK: (32, 26, 20),
+            ROBE_LIGHT: (98, 82, 54),
+            SILVER: (214, 184, 112),
+            SILVER_DIM: (146, 122, 72),
+            BELT_METAL: (198, 164, 92),
+            IRON: (182, 146, 88),
+            IRON_DARK: (116, 88, 52),
+            BOW: (76, 56, 36),
+            EMBER: (236, 184, 88),
+            SLASH: (240, 204, 128),
+        },
+    },
+    "rift_spear": {
+        "class": "spear",
+        "frames": {"windup": 2, "active": 2, "recovery": 4},
+        "remap": {
+            ROBE: (28, 46, 50),
+            ROBE_DARK: (16, 28, 32),
+            ROBE_LIGHT: (54, 92, 96),
+            SILVER: (148, 210, 208),
+            SILVER_DIM: (88, 138, 142),
+            BELT_METAL: (120, 196, 194),
+            STEEL: (178, 238, 232),
+            BOW: (56, 74, 76),
+            EMBER: (142, 232, 220),
+            SLASH: (170, 238, 230),
+        },
+    },
+    "gale_daggers": {
+        "class": "dagger",
+        "frames": {"windup": 1, "active": 3, "recovery": 3},
+        "remap": {
+            ROBE: (36, 46, 34),
+            ROBE_DARK: (20, 28, 20),
+            ROBE_LIGHT: (72, 96, 64),
+            SILVER: (172, 202, 122),
+            SILVER_DIM: (108, 132, 78),
+            BELT_METAL: (150, 186, 104),
+            STEEL: (208, 234, 190),
+            BOW: (54, 66, 44),
+            EMBER: (168, 232, 140),
+            SLASH: (198, 240, 180),
+        },
+    },
+    "ember_staff": {
+        "class": "staff",
+        "frames": {"windup": 3, "active": 3, "recovery": 4},
+        "remap": {
+            ROBE: (48, 30, 52),
+            ROBE_DARK: (28, 16, 32),
+            ROBE_LIGHT: (92, 58, 100),
+            SILVER: (228, 158, 110),
+            SILVER_DIM: (152, 100, 68),
+            BELT_METAL: (208, 138, 82),
+            STEEL: (228, 176, 120),
+            BOW: (70, 48, 40),
+            EMBER: (255, 138, 70),
+            SLASH: (255, 186, 118),
+        },
+    },
+}
+
 
 def line(surface, color, a, b, width=2):
     pygame.draw.line(
@@ -64,10 +166,17 @@ def dot(surface, color, p, radius=1):
     pygame.draw.circle(surface, color, (round(p[0]), round(p[1])), radius)
 
 
-def save_strip(rel: str, cell: tuple[int, int], frames: int, painter) -> None:
+def save_strip(
+    rel: str, cell: tuple[int, int], frames: int, painter, remap=None
+) -> None:
     surface = pygame.Surface((cell[0] * frames, cell[1]), pygame.SRCALPHA)
     for index in range(frames):
         painter(surface, index, index * cell[0])
+    if remap:
+        for old, new in remap.items():
+            array = pygame.PixelArray(surface)
+            array.replace(old, new)
+            del array
     path = OUT / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     pygame.image.save(surface, str(path))
@@ -858,6 +967,206 @@ def draw_attack_staff_recovery(surface, i, ox):
     )
 
 
+# --- per-weapon attack skins ----------------------------------------------
+
+ATTACK_BASE = {
+    "sword": {
+        "windup": draw_attack_sword_windup,
+        "active": draw_attack_sword_active,
+        "recovery": draw_attack_sword_recovery,
+    },
+    "dagger": {
+        "windup": draw_attack_dagger_windup,
+        "active": draw_attack_dagger_active,
+        "recovery": draw_attack_dagger_recovery,
+    },
+    "hammer": {
+        "windup": draw_attack_hammer_windup,
+        "active": draw_attack_hammer_active,
+        "recovery": draw_attack_hammer_recovery,
+    },
+    "spear": {
+        "windup": draw_attack_spear_windup,
+        "active": draw_attack_spear_active,
+        "recovery": draw_attack_spear_recovery,
+    },
+    "staff": {
+        "windup": draw_attack_staff_windup,
+        "active": draw_attack_staff_active,
+        "recovery": draw_attack_staff_recovery,
+    },
+}
+
+DESPERATE_LUNGE = {
+    "windup": (-1, -2),
+    "active": (1, 3, 5, 6),
+    "recovery": (4, 2, 1),
+}
+
+
+def _shifted(painter, offsets):
+    def wrapped(surface, index, ox):
+        painter(surface, index, ox + offsets[min(index, len(offsets) - 1)])
+
+    return wrapped
+
+
+def _after(painter, fx):
+    def wrapped(surface, index, ox):
+        painter(surface, index, ox)
+        fx(surface, index, ox)
+
+    return wrapped
+
+
+def _fx_flame(surface, i, ox):
+    dot(surface, EMBER, (ox + 32 - i, 13 + i * 4), 1)
+    dot(surface, SLASH, (ox + 30 - i, 17 + i * 4), 1)
+    if i == 0:
+        dot(surface, EMBER, (ox + 20, 10), 1)
+
+
+def _fx_blood(surface, i, ox):
+    if i >= 1:
+        for k in range(2):
+            x = ox + 30 + i + k * 2
+            y = 11 + i * 3 + k * 6
+            line(surface, SLASH, (x, y), (x + 3, y + 3), 1)
+
+
+def _fx_gale_offhand(phase):
+    def fx(surface, i, ox):
+        if phase == "windup":
+            draw_blade(surface, (ox + 21, 23), (ox + 26, 21))
+        elif phase == "active":
+            draw_blade(surface, (ox + 9, 22), (ox + 4, 20))
+        else:
+            draw_blade(surface, (ox + 21, 26 - i), (ox + 25, 24 - i))
+
+    return fx
+
+
+def _fx_gale(surface, i, ox):
+    if i >= 1:
+        line(surface, SLASH, (ox + 2, 20 + i * 2), (ox + 8, 18 + i * 2), 1)
+        line(surface, SLASH, (ox + 26, 13 + i * 2), (ox + 31, 15 + i * 2), 1)
+
+
+def _fx_gale_both(phase):
+    offhand = _fx_gale_offhand(phase)
+
+    def fx(surface, i, ox):
+        offhand(surface, i, ox)
+        _fx_gale(surface, i, ox)
+
+    return fx
+
+
+def _fx_bell(surface, i, ox):
+    if i == 1:
+        pygame.draw.circle(surface, SLASH, (ox + 15, 35), 5, 1)
+        pygame.draw.circle(surface, SLASH, (ox + 15, 35), 2, 1)
+
+
+def _fx_rift(surface, i, ox):
+    dot(surface, FLASH, (ox + 35, 16 + i), 1)
+    line(surface, SLASH, (ox + 32, 13 + i), (ox + 37, 18 + i), 1)
+
+
+def _fx_staff(surface, i, ox):
+    dot(surface, EMBER, (ox + 29 + i, 7 + i * 7), 1)
+    dot(surface, SLASH, (ox + 26 + i, 11 + i * 7), 1)
+    if i >= 2:
+        dot(surface, FLASH, (ox + 31, 18 + i), 1)
+
+
+def weapon_attack_painter(weapon_id: str, phase: str):
+    style = WEAPON_STYLES[weapon_id]
+    painter = ATTACK_BASE[style["class"]][phase]
+    if weapon_id == "desperate_edge":
+        painter = _shifted(painter, DESPERATE_LUNGE[phase])
+    if weapon_id == "gale_daggers":
+        return _after(painter, _fx_gale_both(phase))
+    fx = {
+        "worn_flame_blade": _fx_flame,
+        "desperate_edge": _fx_blood,
+        "bell_hammer": _fx_bell,
+        "rift_spear": _fx_rift,
+        "ember_staff": _fx_staff,
+    }.get(weapon_id)
+    if fx is not None:
+        return _after(painter, fx)
+    return painter
+
+
+def _plunge_pose(i):
+    if i == 0:
+        return player_pose(
+            head=(15, 9),
+            neck=(15, 13),
+            chest=(15, 16),
+            pelvis=(15, 24),
+            near_elbow=(18, 19),
+            near_hand=(20, 25),
+            far_elbow=(12, 17),
+            far_hand=(9, 13),
+            near_knee=(19, 27),
+            near_foot=(23, 31),
+            far_knee=(12, 28),
+            far_foot=(8, 32),
+            hair=(-2, -3),
+            skirt=-2,
+        )
+    return player_pose(
+        head=(17, 11),
+        neck=(16, 15),
+        chest=(16, 18),
+        pelvis=(16, 26),
+        near_elbow=(20, 21),
+        near_hand=(22, 27),
+        far_elbow=(12, 21),
+        far_hand=(10, 26),
+        near_knee=(20, 30),
+        near_foot=(24, 36),
+        far_knee=(12, 31),
+        far_foot=(8, 37),
+        hair=(-1, 1),
+        skirt=2,
+    )
+
+
+def weapon_plunge_painter(weapon_id: str):
+    weapon_class = WEAPON_STYLES[weapon_id]["class"]
+
+    def painter(surface, i, ox):
+        pose = _plunge_pose(i)
+        draw_player_character(surface, ox, pose)
+        if weapon_class == "sword":
+            draw_blade(surface, (ox + 20, 25), (ox + 26, 39))
+        elif weapon_class == "dagger":
+            draw_blade(surface, (ox + 20, 25), (ox + 24, 35))
+            draw_blade(surface, (ox + 10, 25), (ox + 7, 34))
+        elif weapon_class == "hammer":
+            draw_hammer(surface, (ox + 22, 27), (ox + 21, 34), (14, 5))
+        elif weapon_class == "spear":
+            draw_spear(surface, (ox + 5, 9), (ox + 23, 39))
+        elif weapon_class == "staff":
+            draw_staff(
+                surface,
+                (ox + 23, 9),
+                (ox + 23, 38),
+                orb_center=(ox + 23, 6),
+                orb_radius=3,
+            )
+        if i == 1:
+            line(surface, SLASH, (ox + 6, 38), (ox + 13, 38), 1)
+            line(surface, SLASH, (ox + 25, 38), (ox + 32, 38), 1)
+            dot(surface, FLASH, (ox + 10, 36), 1)
+            dot(surface, FLASH, (ox + 28, 36), 1)
+
+    return painter
+
+
 def draw_parry(surface, i, ox):
     pose = player_pose(
         head=(16, 8),
@@ -1395,6 +1704,23 @@ def main() -> None:
     }
     for name, (frames, painter) in player.items():
         save_strip(f"player/{name}.png", PLAYER_CELL, frames, player_painter(painter))
+
+    for weapon_id, style in WEAPON_STYLES.items():
+        for phase, frames in style["frames"].items():
+            save_strip(
+                f"player/attack_{weapon_id}_{phase}.png",
+                PLAYER_CELL,
+                frames,
+                player_painter(weapon_attack_painter(weapon_id, phase)),
+                remap=style["remap"],
+            )
+        save_strip(
+            f"player/plunge_{weapon_id}.png",
+            PLAYER_CELL,
+            2,
+            player_painter(weapon_plunge_painter(weapon_id)),
+            remap=style["remap"],
+        )
 
     crawler = {
         "idle": (2, draw_crawler_idle),

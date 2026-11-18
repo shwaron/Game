@@ -1,7 +1,8 @@
 # 《余烬回环》像素动画与动作引擎设计
 
-> 版本：v0.5
+> 版本：v0.6
 > 更新日期：2026-11-18
+> v0.6 调整：攻击片段改为逐武器 id（六套外观与挥动动作），新增跃击 `plunge_<weapon_id>`
 > v0.5 调整：敌人示例改为武侠客栈妖物（`wine_imp` / `paper_runner`）
 > 相关文档：[接口与数据契约](interfaces.md) · [机制](mechanics.md) · [场景与素材规范](scenes.md)
 
@@ -20,15 +21,18 @@
 | 移动 | `jump` | 离地且上升 | 否 | 起跳 |
 | 移动 | `fall` | 离地且下落 | 是 | 下落 |
 | 移动 | `dash` | `dash_time > 0` | 否 | 冲刺，附带残影 |
-| 战斗 | `attack_<class>_windup` | `attack_phase == windup` | 否 | 前摇（与武器 `windup_ms` 等长） |
-| 战斗 | `attack_<class>_active` | `attack_phase == active` | 否 | 判定帧（与 `active_ms` 等长） |
-| 战斗 | `attack_<class>_recovery` | `attack_phase == recovery` | 否 | 后摇（与 `recovery_ms` 等长） |
+| 战斗 | `attack_<weapon_id>_windup` | `attack_phase == windup` | 否 | 前摇（与武器 `windup_ms` 等长） |
+| 战斗 | `attack_<weapon_id>_active` | `attack_phase == active` | 否 | 判定帧（与 `active_ms` 等长） |
+| 战斗 | `attack_<weapon_id>_recovery` | `attack_phase == recovery` | 否 | 后摇（与 `recovery_ms` 等长） |
+| 战斗 | `plunge_<weapon_id>` | `plunging` 或 `plunge_landed` | 否 | 平台跃击下坠与落地 |
 | 战斗 | `parry` | `parry_timer > 0` | 否 | 弹反窗口（0.15 s） |
 | 技能 | `skill` | `cast_timer > 0` | 否 | 施法（0.25 s），移动与受击可打断表现 |
 | 受创 | `hurt` | `hurt_timer > 0` | 否 | 受击闪白 |
 | 受创 | `death` | 生命 ≤ 0 | 否 | 倒地，停在末帧 |
 
-攻击动作按武器类别细分：`<class>` ∈ `sword / dagger / hammer / spear / staff`，共 15 个片段；玩家 `weapon["class"]` 决定播放哪一套（缺省或未识别类别回退 `sword`）。各片段帧率与对应武器的 `windup_ms / active_ms / recovery_ms` 对齐，保证观感与判定节奏一致。
+攻击动作优先按**具体武器 id** 取片段：`attack_<weapon_id>_windup/active/recovery`，六把初始武器各有一套（共 18 个片段），外观与挥动轨迹不同。若 `animations.json` 中缺少该武器的片段，则回退到按类别划分的 `attack_<class>_*`（`<class>` ∈ `sword / dagger / hammer / spear / staff`，共 15 个），类别缺失或未识别再回退 `sword`。各片段帧率与对应武器的 `windup_ms / active_ms / recovery_ms` 对齐，保证观感与判定节奏一致。
+
+跃击片段同理：`plunge_<weapon_id>` 两帧（下坠 + 落地冲击），缺失时回退 `fall`；落地后由状态逻辑决定结束时机，不依赖动画播完。
 
 ### 1.2 敌人动作
 
@@ -55,12 +59,18 @@
     "origin": [17, 2],
     "clips": {
       "idle": {"sheet": "sprites/player/idle.png", "frames": 4, "fps": 6, "loop": true},
-      "attack_sword_active": {
-        "sheet": "sprites/player/attack_sword_active.png",
+      "attack_worn_flame_blade_active": {
+        "sheet": "sprites/player/attack_worn_flame_blade_active.png",
         "frames": 4,
         "fps": 50,
         "loop": false,
         "events": [{"frame": 0, "name": "swing_hit"}]
+      },
+      "plunge_worn_flame_blade": {
+        "sheet": "sprites/player/plunge_worn_flame_blade.png",
+        "frames": 2,
+        "fps": 12,
+        "loop": false
       }
     }
   },
@@ -86,7 +96,9 @@
 | 敌人 | `assets/sprites/enemies/<enemy_id>/<action>.png` | 24×36 |
 
 - 占位素材由 `tools/gen_placeholder_sprites.py` 生成：以关节坐标驱动，绘制武侠风黑衣剑客（长发髻、银肩饰、腰带饰、长袍下摆），武器按类别分别绘制（剑含银护手与余烬流苏、枪尖、铁锤、法杖余烬珠），腰后挂鞘。姿态可附 `hair=(dx,dy)` 与 `skirt=dx` 元数据，驱动发辫与袍摆的次级摆动。
+- 六把武器各有独立外观与挥动动作：`WORN_FLAME` 暖橙余烬、`DESPERATE` 赤红突刺（带明显前冲位移）、`BELL` 青铜重锤（环形震波）、`RIFT` 青碧长枪（枪尖闪光）、`GALE` 翠绿双匕（副手第二把刀）、`EMBER` 紫焰法杖（火星）。生成器按武器 id 重映射袍服/金属/特效调色，并按招式相位选取不同帧数与特效绘制函数；类别片段保留作回退。
 - 玩家帧加宽到 52×40 以容纳长剑与挥击轨迹；美术以帧中心为轴排布，`origin` 相应取 `[17, 2]`，使左右朝向翻转时身体、武器与碰撞框保持对齐。
+- 跃击单独绘制两帧：下坠时武器朝下、袍摆上扬，落地帧带冲击线；按武器 id 生成 `plunge_<weapon_id>.png`。
 - 正式素材替换时**保持路径与帧数不变**，帧数变化须同步 `animations.json` 并跑校验。
 - 当前占位素材预览：[动作总览 GIF](preview/player_actions.gif) · [动作帧总表 PNG](preview/player_actions.png)。
 - 朝向：素材默认朝右，绘制时按 `facing < 0` 水平翻转并缓存翻转面。
@@ -162,3 +174,5 @@ class Animator:
 | v0.2 | 2026-11-18 | 攻击动作按武器类别拆分 15 个片段；新增匕/锤/枪/杖占位帧，剑类资源更名 `attack_sword_*` |
 | v0.3 | 2026-11-18 | 玩家/敌人全部占位素材改为火柴人骨骼框架；攻击判定框调试绘制改为细描边 |
 | v0.4 | 2026-11-18 | 主角改为武侠风黑衣剑客像素造型：52×40 帧、origin [17,2]、发辫/袍摆次级摆动、挂鞘与分类武器绘制；敌人保留火柴人骨骼占位 |
+| v0.5 | 2026-11-18 | 敌人示例改为武侠客栈妖物（`wine_imp` / `paper_runner`） |
+| v0.6 | 2026-11-18 | 攻击片段改为 `attack_<weapon_id>_*`（六把武器 18 个片段，类别片段作回退）；新增 `plunge_<weapon_id>` 跃击片段；逐武器调色与挥动特效说明 |

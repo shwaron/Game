@@ -1,3 +1,4 @@
+import math
 import random
 
 import pygame
@@ -11,6 +12,7 @@ from game.entities.enemy import ChaserEnemy, ShooterEnemy
 from game.entities.pickup import (
     EMBER_VALUE,
     FIRE_SEED,
+    MANUAL,
     POTION,
     POTION_HEAL,
     Pickup,
@@ -37,6 +39,8 @@ from game.systems.weapons import scaling_bonus, weapon_damage, weapon_level
 TRANSITION_TIME = 0.16
 ROOM_TITLE_TIME = 2.8
 HINT_TIME = 14.0
+ANCHOR_RANGE = 46
+ANCHOR_TOAST_TIME = 2.4
 
 
 class RunScene(Scene):
@@ -89,6 +93,25 @@ class RunScene(Scene):
         self.discovered: set[str] = set()
         self.cleared: set[str] = set()
         self.taken_loot: set[tuple[str, int]] = set()
+        self.lit_anchors: set[str] = set()
+        self.opened_chests: set[tuple[str, int]] = set()
+        self.map_targets: list = []
+        self.map_selection = 0
+        self.toast_timer = 0.0
+        self.toast_text = ""
+        self.manual_choice: bool = False
+        self.manual_selection = 0
+        self.manual_stats = {"attack": 0, "hp": 0, "armor": 0}
+        self.anchor_glow = pygame.Surface((44, 44))
+        self.anchor_glow.fill((0, 0, 0))
+        for radius in range(20, 3, -2):
+            strength = 21 - radius
+            pygame.draw.circle(
+                self.anchor_glow,
+                (strength, int(strength * 0.62), int(strength * 0.28)),
+                (22, 22),
+                radius,
+            )
         self.skill_fx: list[list] = []
         self.font_title = None
         self.font_info = None
@@ -109,6 +132,8 @@ class RunScene(Scene):
 
     # -- run / room lifecycle -------------------------------------------
     def _start_run(self) -> None:
+        for slot in self.weapon_slots:
+            slot["level"] = 2 if slot["id"] == "worn_flame_blade" else 1
         self.weapon_index = 0
         self.weapon = self.weapon_slots[0]
         self.player = Player(0, 0, self.weapon, self.player_anims)
@@ -128,6 +153,15 @@ class RunScene(Scene):
         self.discovered = set()
         self.cleared = set()
         self.taken_loot = set()
+        self.lit_anchors = {START_ROOM}
+        self.opened_chests = set()
+        self.map_targets = []
+        self.map_selection = 0
+        self.toast_timer = 0.0
+        self.toast_text = ""
+        self.manual_choice = False
+        self.manual_selection = 0
+        self.manual_stats = {"attack": 0, "hp": 0, "armor": 0}
         self.skill_cooldowns = {skill_id: 0.0 for skill_id in self.skills}
         self.cast_id = 0
         self.skill_fx = []
@@ -153,7 +187,13 @@ class RunScene(Scene):
         self.player.hurt_timer = 0.0
         self.player.invuln = max(self.player.invuln, 0.25)
         self.player.ghosts = []
-        self.player.facing = 1 if spawn[0] < room.width / 2 else -1
+        self.player.plunging = False
+        self.player.plunge_landed = False
+        self.player._fall_apex = None
+        if entry == "anchor":
+            self.player.facing = 1
+        else:
+            self.player.facing = 1 if spawn[0] < room.width / 2 else -1
         self.player.state = "fall"
 
         self.combat = CombatSystem(self.rng)
@@ -200,24 +240,41 @@ class RunScene(Scene):
     # -- update ---------------------------------------------------------
     def update(self, dt: float) -> None:
         inp = self.game.input
-        if inp.is_action_just_pressed("pause"):
-            self.game.quit()
-            return
 
         self.room.art.update(dt)
         self.room_title_timer = max(0.0, self.room_title_timer - dt)
         self.clear_banner_timer = max(0.0, self.clear_banner_timer - dt)
         self.hint_timer = max(0.0, self.hint_timer - dt)
+        self.toast_timer = max(0.0, self.toast_timer - dt)
         self.exit_cooldown = max(0.0, self.exit_cooldown - dt)
 
         if self.transition is not None:
             self._update_transition(dt)
             return
 
+        if self.manual_choice:
+            self._update_manual_choice(inp)
+            return
+
         if inp.is_action_just_pressed("map") and self.player.health.alive:
             self.show_map = not self.show_map
+            if self.show_map:
+                self._refresh_map_targets()
             return
         if self.show_map:
+            if inp.is_action_just_pressed("pause"):
+                self.show_map = False
+                return
+            if inp.is_action_just_pressed("move_left"):
+                self._cycle_map_anchor(-1)
+            elif inp.is_action_just_pressed("move_right"):
+                self._cycle_map_anchor(1)
+            if inp.is_action_just_pressed("interact") and self.map_targets:
+                self._begin_teleport(self.map_targets[self.map_selection])
+            return
+
+        if inp.is_action_just_pressed("pause"):
+            self.game.quit()
             return
 
         if self.hitstop > 0:
@@ -236,6 +293,12 @@ class RunScene(Scene):
             if self.death_timer > 1.6:
                 self._start_run()
             return
+
+        if inp.is_action_just_pressed("interact"):
+            if self._interact_chest():
+                return
+            if self._interact_anchor():
+                return
 
         self.camera.update(
             dt, self.player.rect, self.room.width, HEIGHT, self.player.facing
@@ -264,6 +327,9 @@ class RunScene(Scene):
             )
             if hits:
                 self.hitstop = config.HITSTOP_ON_HIT
+
+        if self.player.plunge_landed:
+            self._resolve_plunge_kill()
 
         for enemy in list(self.enemies):
             enemy.update(dt, self.player)
@@ -379,6 +445,175 @@ class RunScene(Scene):
         }
         self.exit_cooldown = 0.9
 
+    def _near_anchor(self):
+        if not self.player.health.alive:
+            return None
+        px = self.player.rect.centerx
+        feet = self.player.rect.bottom
+        for anchor in self.room.anchors:
+            if (
+                abs(px - anchor.x) <= ANCHOR_RANGE
+                and abs(feet - FLOOR_Y) <= 14
+            ):
+                return anchor
+        return None
+
+    def _interact_anchor(self) -> bool:
+        anchor = self._near_anchor()
+        if anchor is None:
+            return False
+        if anchor.room_id not in self.lit_anchors:
+            self.lit_anchors.add(anchor.room_id)
+            self._show_toast(self.loc.get("ui.anchor.toast", "灯锚已亮 · 舆图可传送"))
+            self.game.bus.publish("anchor.lit", {"room": anchor.room_id})
+            return False
+        self.show_map = True
+        self._refresh_map_targets()
+        return True
+
+    def _show_toast(self, text: str) -> None:
+        self.toast_text = text
+        self.toast_timer = ANCHOR_TOAST_TIME
+
+    def _near_chest(self):
+        if not self.player.health.alive:
+            return None
+        px = self.player.rect.centerx
+        feet = self.player.rect.bottom
+        for chest in self.room.chests:
+            if (chest.room_id, chest.x) in self.opened_chests:
+                continue
+            if (
+                abs(px - chest.rect.centerx) <= 28
+                and abs(feet - chest.rect.bottom) <= 22
+            ):
+                return chest
+        return None
+
+    def _interact_chest(self) -> bool:
+        chest = self._near_chest()
+        if chest is None:
+            return False
+        self.opened_chests.add((chest.room_id, chest.x))
+        weapon = next(
+            (slot for slot in self.weapon_slots if slot["id"] == chest.weapon_id),
+            None,
+        )
+        name_key = f"weapon.{chest.weapon_id}.name"
+        name = self.loc.get(name_key, chest.weapon_id)
+        upgraded = False
+        level = 0
+        if weapon is not None:
+            level = int(weapon.get("level", 1))
+            max_level = int(weapon.get("max_level", 5))
+            if level < max_level:
+                level += 1
+                weapon["level"] = level
+                upgraded = True
+        self.embers += chest.embers
+        if upgraded:
+            text = self.loc.get(
+                "ui.chest.toast_upgrade",
+                "宝箱：{weapon} 升至 {level} 级 · 余烬 +{embers}",
+            ).format(weapon=name, level=level, embers=chest.embers)
+        else:
+            text = self.loc.get(
+                "ui.chest.toast_max", "宝箱：{weapon} 已至顶级 · 余烬 +{embers}"
+            ).format(weapon=name, embers=chest.embers)
+        self._show_toast(text)
+        self.game.bus.publish(
+            "chest.opened",
+            {"room": chest.room_id, "weapon": chest.weapon_id, "level": level},
+        )
+        return True
+
+    def _resolve_plunge_kill(self) -> None:
+        hitbox = self.player.plunge_hitbox
+        if hitbox is None:
+            return
+        killed = False
+        for enemy in self.enemies:
+            if enemy.health.alive and hitbox.colliderect(enemy.rect):
+                enemy.health.take_damage(enemy.health.hp + 1)
+                killed = True
+        if killed:
+            self.skill_fx.append([hitbox.inflate(16, 10), 0.2])
+            self.hitstop = 0.09
+
+    # -- manuals ---------------------------------------------------------
+    def _manual_options(self) -> list[tuple[str, str, str]]:
+        return [
+            (
+                "attack",
+                self.loc.get("ui.manual.attack.name", "残页 · 破锋"),
+                self.loc.get("ui.manual.attack.desc", "攻击 +2"),
+            ),
+            (
+                "hp",
+                self.loc.get("ui.manual.hp.name", "残页 · 固元"),
+                self.loc.get("ui.manual.hp.desc", "气血上限 +10"),
+            ),
+            (
+                "armor",
+                self.loc.get("ui.manual.armor.name", "残页 · 铁衣"),
+                self.loc.get("ui.manual.armor.desc", "护甲 +1"),
+            ),
+        ]
+
+    def _update_manual_choice(self, inp) -> None:
+        options = self._manual_options()
+        if inp.is_action_just_pressed("move_left"):
+            self.manual_selection = (self.manual_selection - 1) % len(options)
+        elif inp.is_action_just_pressed("move_right"):
+            self.manual_selection = (self.manual_selection + 1) % len(options)
+        elif inp.is_action_just_pressed("interact"):
+            self._apply_manual_choice(options[self.manual_selection][0])
+
+    def _apply_manual_choice(self, stat: str) -> None:
+        if stat == "attack":
+            self.player.bonus_attack += 2
+            self.manual_stats["attack"] += 2
+        elif stat == "hp":
+            self.player.health.max_hp += 10
+            self.player.health.heal(10)
+            self.manual_stats["hp"] += 10
+        elif stat == "armor":
+            self.player.health.armor += 1
+            self.manual_stats["armor"] += 1
+        self.manual_choice = False
+        self.manual_selection = 0
+        self._show_toast(self.loc.get("ui.manual.gained", "秘籍已参悟"))
+        self.game.bus.publish("manual.learned", {"stat": stat})
+
+    def _refresh_map_targets(self) -> None:
+        current = self.room.room_id
+        ordered = sorted(
+            self.rooms.values(), key=lambda room: (room.map_pos[0], room.map_pos[1])
+        )
+        self.map_targets = [
+            anchor
+            for room in ordered
+            if room.room_id != current and room.room_id in self.lit_anchors
+            for anchor in room.anchors
+        ]
+        if self.map_selection >= len(self.map_targets):
+            self.map_selection = 0
+
+    def _cycle_map_anchor(self, step: int) -> None:
+        if not self.map_targets:
+            return
+        self.map_selection = (self.map_selection + step) % len(self.map_targets)
+
+    def _begin_teleport(self, anchor) -> None:
+        self.show_map = False
+        self.transition = {
+            "phase": "out",
+            "timer": TRANSITION_TIME,
+            "target": anchor.room_id,
+            "entry": anchor.entry,
+        }
+        self.exit_cooldown = 0.9
+
     def _spawn_projectile(self, enemy) -> None:
         spec = enemy.pending_projectile
         speed = spec.get("speed", 160)
@@ -408,6 +643,9 @@ class RunScene(Scene):
             self.embers += EMBER_VALUE
         elif pickup.item_id == POTION:
             self.player.heal(POTION_HEAL)
+        elif pickup.item_id == MANUAL:
+            self.manual_choice = True
+            self.manual_selection = 0
         source = self._loot_sources.pop(id(pickup), None)
         if source is not None:
             self.taken_loot.add(source)
@@ -470,6 +708,8 @@ class RunScene(Scene):
         world = self.world_surface
         self.room.art.draw_back(world)
         self._draw_exit_markers(world)
+        self._draw_anchors(world)
+        self._draw_chests(world)
         self._draw_hazards(world)
         for pickup in self.pickups:
             pickup.draw(world)
@@ -487,11 +727,16 @@ class RunScene(Scene):
 
         surface.blit(world, (0, 0), self.camera.rect)
         self.room.art.draw_front(surface)
+        self._draw_anchor_prompt(surface)
+        self._draw_chest_prompt(surface)
         self._draw_exit_hints(surface)
         self._draw_enemy_names(surface)
         self._draw_hud(surface)
         self._draw_room_title(surface)
+        self._draw_toast(surface)
         self._draw_clear_banner(surface)
+        if self.manual_choice:
+            self._draw_manual_choice(surface)
         if self.show_map:
             self._draw_minimap(surface)
         if not self.player.health.alive:
@@ -558,6 +803,181 @@ class RunScene(Scene):
                         (rect.centerx, rect.y + 32),
                     ],
                 )
+
+    def _draw_anchors(self, surface: pygame.Surface) -> None:
+        t = self.room.art.time
+        for anchor in self.room.anchors:
+            x = anchor.x
+            lit = anchor.room_id in self.lit_anchors
+            if lit:
+                surface.blit(
+                    self.anchor_glow,
+                    (x - 22, 192),
+                    special_flags=pygame.BLEND_RGB_ADD,
+                )
+            pygame.draw.rect(surface, (46, 43, 36), (x - 8, 241, 16, 5))
+            pygame.draw.rect(surface, (94, 88, 70), (x - 8, 240, 16, 2))
+            pygame.draw.rect(surface, (58, 55, 46), (x - 3, 224, 6, 17))
+            pygame.draw.rect(surface, (108, 100, 78), (x - 2, 225, 2, 15))
+            pygame.draw.rect(surface, (72, 67, 54), (x - 10, 219, 20, 5))
+            pygame.draw.rect(surface, (130, 120, 90), (x - 9, 218, 18, 2))
+            if lit:
+                sway = int(round(math.sin(t * 5.0 + anchor.x * 0.05) * 1.5))
+                pygame.draw.polygon(
+                    surface,
+                    (236, 112, 48),
+                    [(x, 206), (x - 4, 214), (x, 219), (x + 4, 214)],
+                )
+                pygame.draw.polygon(
+                    surface,
+                    (255, 170, 84),
+                    [(x, 209), (x - 2, 214), (x, 218), (x + 2, 214)],
+                )
+                pygame.draw.polygon(
+                    surface,
+                    (255, 226, 154),
+                    [(x, 212), (x - 1, 215), (x, 217), (x + 1, 215)],
+                )
+                pygame.draw.circle(surface, (255, 238, 190), (x + sway, 207), 1)
+            else:
+                pygame.draw.line(surface, (78, 86, 82), (x, 210), (x, 214), 1)
+                pygame.draw.circle(surface, (72, 82, 80), (x, 216), 2)
+                pygame.draw.circle(surface, (38, 45, 45), (x, 216), 1)
+                pygame.draw.line(surface, (86, 104, 104), (x - 3, 221), (x + 3, 221), 1)
+
+    def _draw_chests(self, surface: pygame.Surface) -> None:
+        t = self.room.art.time
+        for chest in self.room.chests:
+            r = chest.rect
+            opened = (chest.room_id, chest.x) in self.opened_chests
+            pygame.draw.rect(surface, (44, 30, 20), (r.x - 1, r.bottom - 2, r.w + 2, 3))
+            if opened:
+                pygame.draw.rect(surface, (58, 42, 28), (r.x, r.y + 6, r.w, r.h - 6))
+                pygame.draw.rect(surface, (30, 22, 16), (r.x + 2, r.y + 4, r.w - 4, 5))
+                pygame.draw.rect(surface, (150, 120, 74), (r.x + 1, r.y + 1, r.w - 2, 3))
+                pygame.draw.rect(surface, (92, 70, 44), (r.x + 2, r.y + 8, r.w - 4, 1))
+            else:
+                surface.blit(
+                    self.anchor_glow,
+                    (r.centerx - 22, r.y - 16),
+                    special_flags=pygame.BLEND_RGB_ADD,
+                )
+                pygame.draw.rect(surface, (104, 70, 38), r)
+                pygame.draw.rect(surface, (138, 98, 54), (r.x + 1, r.y + 4, r.w - 2, r.h - 5))
+                pygame.draw.rect(surface, (196, 160, 96), (r.x + 1, r.y + 3, r.w - 2, 2))
+                pygame.draw.rect(surface, (56, 38, 22), r, 1)
+                pygame.draw.rect(surface, (120, 88, 50), (r.x, r.y + 6, r.w, 1))
+                pygame.draw.rect(
+                    surface, (232, 194, 112), (r.centerx - 1, r.y + 7, 3, 4)
+                )
+                sx = r.centerx + int(round(math.sin(t * 2.4 + chest.x) * 10))
+                sy = r.y - 6 + int(round(math.sin(t * 3.1 + chest.x) * 2))
+                pygame.draw.line(surface, (255, 226, 150), (sx - 1, sy), (sx + 1, sy))
+                pygame.draw.line(surface, (255, 226, 150), (sx, sy - 1), (sx, sy + 1))
+
+    def _blit_prompt(
+        self, surface: pygame.Surface, text: str, sx: int, sy: int
+    ) -> None:
+        label = self.font_tiny.render(text, True, (232, 214, 174))
+        plate = pygame.Surface(
+            (label.get_width() + 8, label.get_height() + 4), pygame.SRCALPHA
+        )
+        plate.fill((8, 7, 6, 170))
+        lx = max(6, min(WIDTH - label.get_width() - 14, sx - label.get_width() // 2))
+        ly = max(18, min(HEIGHT - 26, sy))
+        surface.blit(plate, (lx - 4, ly - 2))
+        surface.blit(label, (lx, ly))
+
+    def _draw_anchor_prompt(self, surface: pygame.Surface) -> None:
+        if (
+            self.transition is not None
+            or not self.player.health.alive
+            or self.show_map
+            or self.manual_choice
+        ):
+            return
+        anchor = self._near_anchor()
+        if anchor is None:
+            return
+        lit = anchor.room_id in self.lit_anchors
+        key = "ui.anchor.open" if lit else "ui.anchor.light"
+        fallback = "E 舆图传送" if lit else "E 点亮灯锚"
+        sx = anchor.x - round(self.camera.x)
+        sy = 206 - round(self.camera.y) - self.font_tiny.get_height() - 14
+        self._blit_prompt(surface, self.loc.get(key, fallback), sx, sy)
+
+    def _draw_chest_prompt(self, surface: pygame.Surface) -> None:
+        if (
+            self.transition is not None
+            or not self.player.health.alive
+            or self.show_map
+            or self.manual_choice
+        ):
+            return
+        chest = self._near_chest()
+        if chest is None:
+            return
+        sx = chest.rect.centerx - round(self.camera.x)
+        sy = chest.rect.y - round(self.camera.y) - self.font_tiny.get_height() - 8
+        self._blit_prompt(
+            surface, self.loc.get("ui.chest.prompt", "E 开启宝箱"), sx, sy
+        )
+
+    def _draw_toast(self, surface: pygame.Surface) -> None:
+        if self.toast_timer <= 0 or self.show_map:
+            return
+        alpha = min(255, int(255 * self.toast_timer / 0.6))
+        text = self.toast_text or self.loc.get("ui.anchor.toast", "灯锚已亮 · 舆图可传送")
+        label = self.font_info.render(text, True, (238, 214, 160))
+        plate = pygame.Surface((label.get_width() + 16, 15), pygame.SRCALPHA)
+        plate.fill((8, 7, 6, 170))
+        pygame.draw.line(plate, (150, 116, 68), (4, 0), (plate.get_width() - 4, 0), 1)
+        plate.blit(label, (8, 0))
+        plate.set_alpha(alpha)
+        surface.blit(plate, ((WIDTH - plate.get_width()) // 2, 146))
+
+    def _draw_manual_choice(self, surface: pygame.Surface) -> None:
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((5, 5, 4, 200))
+        surface.blit(overlay, (0, 0))
+        panel = pygame.Rect(74, 44, WIDTH - 148, 176)
+        pygame.draw.rect(surface, (12, 11, 9), panel)
+        pygame.draw.rect(surface, (150, 116, 68), panel, 1)
+        title = self.loc.get("ui.manual.title", "拾得秘籍残页")
+        subtitle = self.loc.get("ui.manual.subtitle", "参悟一页 · 择一而修")
+        title_surf = self.font_title.render(title, True, (238, 214, 160))
+        sub_surf = self.font_tiny.render(subtitle, True, (166, 158, 138))
+        surface.blit(title_surf, (panel.centerx - title_surf.get_width() // 2, 52))
+        surface.blit(sub_surf, (panel.centerx - sub_surf.get_width() // 2, 70))
+        options = self._manual_options()
+        for index, (_, name, desc) in enumerate(options):
+            row = pygame.Rect(panel.x + 14, 88 + index * 30, panel.w - 28, 26)
+            selected = index == self.manual_selection
+            pygame.draw.rect(
+                surface, (26, 22, 16) if selected else (18, 16, 13), row
+            )
+            pygame.draw.rect(
+                surface,
+                (226, 190, 118) if selected else (66, 56, 44),
+                row,
+                1,
+            )
+            name_surf = self.font_info.render(
+                name, True, (246, 224, 172) if selected else (196, 184, 154)
+            )
+            desc_surf = self.font_tiny.render(
+                desc, True, (206, 190, 152) if selected else (148, 138, 118)
+            )
+            surface.blit(name_surf, (row.x + 8, row.y + 2))
+            surface.blit(
+                desc_surf,
+                (row.right - desc_surf.get_width() - 8, row.y + 7),
+            )
+        hint = self.loc.get("ui.manual.hint", "A/D 选择 · E 参悟")
+        hint_surf = self.font_tiny.render(hint, True, (166, 158, 138))
+        surface.blit(
+            hint_surf, (panel.centerx - hint_surf.get_width() // 2, panel.bottom - 20)
+        )
 
     def _draw_exit_hints(self, surface: pygame.Surface) -> None:
         if self.transition is not None or not self.player.health.alive:
@@ -719,30 +1139,49 @@ class RunScene(Scene):
             + (f" +{int(bonus * 100)}%" if bonus > 0 else "")
         )
         loot_line = f"余烬 {self.embers}   击杀 {self.kills}"
+        manual_line = ""
+        stats = self.manual_stats
+        if stats["attack"] or stats["hp"] or stats["armor"]:
+            manual_line = (
+                f"秘籍 攻+{stats['attack']} 血+{stats['hp']} 御+{stats['armor']}"
+            )
         weapon_surf = self.font_tiny.render(weapon_line, True, (220, 210, 184))
         loot_surf = self.font_tiny.render(loot_line, True, (166, 158, 138))
+        manual_surf = (
+            self.font_tiny.render(manual_line, True, (196, 176, 132))
+            if manual_line
+            else None
+        )
+        panel_h = weapon_surf.get_height() + loot_surf.get_height() + 8
+        if manual_surf is not None:
+            panel_h += manual_surf.get_height()
         weapon_panel = pygame.Surface(
             (
-                max(weapon_surf.get_width(), loot_surf.get_width()) + 10,
-                weapon_surf.get_height() + loot_surf.get_height() + 8,
+                max(
+                    weapon_surf.get_width(),
+                    loot_surf.get_width(),
+                    manual_surf.get_width() if manual_surf else 0,
+                )
+                + 10,
+                panel_h,
             ),
             pygame.SRCALPHA,
         )
         weapon_panel.fill((8, 7, 6, 178))
         surface.blit(weapon_panel, (472 - weapon_panel.get_width(), 6))
         surface.blit(weapon_surf, (472 - weapon_surf.get_width() - 4, 7))
-        surface.blit(
-            loot_surf,
-            (
-                472 - loot_surf.get_width() - 4,
-                7 + weapon_surf.get_height() + 2,
-            ),
-        )
+        line_y = 7 + weapon_surf.get_height() + 2
+        surface.blit(loot_surf, (472 - loot_surf.get_width() - 4, line_y))
+        if manual_surf is not None:
+            surface.blit(
+                manual_surf,
+                (472 - manual_surf.get_width() - 4, line_y + loot_surf.get_height()),
+            )
 
         if self.hint_timer > 0:
             hint_lines = (
-                "A/D 移动  空格 跳  Shift 冲刺  J 攻击  K 弹反",
-                "Q 换武器  U 烬爆  M 舆图  R 重来  ESC 离开",
+                "A/D 移动  空格 跳  S+空格 跃击  Shift 冲刺  J 攻击  K 弹反",
+                "Q 换武器  U 烬爆  E 交互  M 舆图  R 重来  ESC 离开",
             )
             rendered = [
                 self.font_tiny.render(line, True, (206, 192, 162))
@@ -803,11 +1242,29 @@ class RunScene(Scene):
         title = self.loc.get("ui.map.title", "青篁岭 · 竹坞舆图")
         title_surf = self.font_title.render(title, True, (238, 214, 160))
         surface.blit(title_surf, (WIDTH // 2 - title_surf.get_width() // 2, 30))
-        subtitle = self.loc.get("ui.map.subtitle", "已探索 {n}/{total}").format(
-            n=len(self.discovered), total=len(self.rooms)
+        anchor_total = sum(len(room.anchors) for room in self.rooms.values())
+        lit_total = sum(
+            1
+            for room in self.rooms.values()
+            if room.anchors and room.room_id in self.lit_anchors
+        )
+        subtitle = self.loc.get(
+            "ui.map.subtitle", "已探索 {n}/{total} · 灯锚 {a}/{b}"
+        ).format(
+            n=len(self.discovered),
+            total=len(self.rooms),
+            a=lit_total,
+            b=anchor_total,
         )
         sub_surf = self.font_info.render(subtitle, True, (166, 158, 138))
         surface.blit(sub_surf, (WIDTH // 2 - sub_surf.get_width() // 2, 48))
+        legend = self.loc.get(
+            "ui.map.legend", "灯＝传送锚 · 绿＝已清 · 金＝所在"
+        )
+        legend_surf = self.font_tiny.render(legend, True, (124, 116, 98))
+        surface.blit(
+            legend_surf, (WIDTH // 2 - legend_surf.get_width() // 2, 66)
+        )
 
         shown: set[str] = set()
         for room_id, room in self.rooms.items():
@@ -841,30 +1298,106 @@ class RunScene(Scene):
                 surface, (60, 56, 48), (pos[0] - 8, pos[1] - 5, 16, 10), 1
             )
 
+        selected = (
+            self.map_targets[self.map_selection] if self.map_targets else None
+        )
         for room_id in self.discovered:
             room = self.rooms[room_id]
             x, y = self._map_center(room.map_pos)
             if room_id == self.room.room_id:
-                fill = (226, 196, 134)
-                border = (255, 232, 174)
+                fill = (255, 224, 156)
+                border = (255, 248, 214)
+                name_color = (255, 236, 184)
             elif room_id in self.cleared:
                 fill = (116, 148, 112)
                 border = (152, 180, 146)
+                name_color = (152, 180, 146)
             else:
                 fill = (146, 126, 94)
                 border = (188, 164, 120)
+                name_color = (198, 188, 160)
             pygame.draw.rect(surface, fill, (x - 7, y - 4, 14, 8))
             pygame.draw.rect(surface, border, (x - 7, y - 4, 14, 8), 1)
+            for anchor in room.anchors:
+                self._draw_map_anchor(
+                    surface, x + 10, y - 5, room_id in self.lit_anchors
+                )
+            short_key = f"room.{room_id}.short"
+            short_name = self.loc.get(
+                short_key, self.loc.get(room.title_key, room_id)
+            )
+            name = self.font_tiny.render(short_name, True, name_color)
+            nx = x - name.get_width() // 2
+            ny = y + 6
+            pygame.draw.rect(
+                surface,
+                (10, 9, 8),
+                (nx - 2, ny - 1, name.get_width() + 4, name.get_height() + 2),
+            )
+            surface.blit(name, (nx, ny))
+
+        if selected is not None:
+            target_room = self.rooms[selected.room_id]
+            tx, ty = self._map_center(target_room.map_pos)
+            pygame.draw.polygon(
+                surface,
+                (255, 232, 174),
+                [(tx - 3, ty - 11), (tx + 3, ty - 11), (tx, ty - 7)],
+            )
+            pygame.draw.rect(
+                surface, (255, 240, 200), (tx - 8, ty - 5, 16, 10), 1
+            )
 
         current_name = self.loc.get(self.room.title_key, self.room.room_id)
-        label = self.font_info.render(current_name, True, HUD_GOLD)
-        surface.blit(label, (WIDTH // 2 - label.get_width() // 2, 206))
-        hint = self.loc.get("ui.map.close", "M 关闭舆图")
-        hint_surf = self.font_info.render(hint, True, (166, 158, 138))
+        current_text = self.loc.get("ui.map.current", "所在 · {name}").format(
+            name=current_name
+        )
+        current_label = self.font_info.render(current_text, True, HUD_GOLD)
+        surface.blit(
+            current_label, (WIDTH // 2 - current_label.get_width() // 2, 202)
+        )
+
+        if selected is not None:
+            target_room = self.rooms[selected.room_id]
+            target_name = self.loc.get(
+                target_room.title_key, target_room.room_id
+            )
+            travel_text = self.loc.get("ui.map.travel", "E 传送 · {name}").format(
+                name=target_name
+            )
+            travel_color = (242, 212, 150)
+        elif self.lit_anchors:
+            travel_text = self.loc.get(
+                "ui.map.no_target", "此处之外暂无点亮的灯锚"
+            )
+            travel_color = (166, 158, 138)
+        else:
+            travel_text = self.loc.get("ui.map.light_hint", "靠近灯锚按 E 点亮")
+            travel_color = (166, 158, 138)
+        travel_label = self.font_info.render(travel_text, True, travel_color)
+        surface.blit(
+            travel_label, (WIDTH // 2 - travel_label.get_width() // 2, 216)
+        )
+
+        controls = self.loc.get(
+            "ui.map.controls", "A/D 选锚 · E 传送 · M 关闭"
+        )
+        hint_surf = self.font_tiny.render(controls, True, (166, 158, 138))
         surface.blit(
             hint_surf,
-            (WIDTH // 2 - hint_surf.get_width() // 2, HEIGHT - 44),
+            (WIDTH // 2 - hint_surf.get_width() // 2, 232),
         )
+
+    @staticmethod
+    def _draw_map_anchor(
+        surface: pygame.Surface, cx: int, cy: int, lit: bool
+    ) -> None:
+        color = (246, 196, 104) if lit else (78, 86, 80)
+        pygame.draw.rect(surface, (10, 9, 8), (cx - 2, cy - 4, 5, 7))
+        pygame.draw.rect(surface, color, (cx - 2, cy - 4, 5, 7), 1)
+        pygame.draw.rect(surface, color, (cx - 1, cy - 2, 3, 3))
+        if lit:
+            pygame.draw.circle(surface, (255, 232, 174), (cx, cy - 5), 1)
 
     def _draw_death(self, surface: pygame.Surface) -> None:
         alpha = min(170, int(170 * self.death_timer / 0.6))

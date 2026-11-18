@@ -65,9 +65,12 @@ class Player:
         self.attack_timer = 0.0
         self.attack_hit = False
         self.attack_power = 0.0
+        self.bonus_attack = 0
         self.swing_id = 0
         self.death_reported = False
-        self._fall_speed = 0.0
+        self.plunging = False
+        self.plunge_landed = False
+        self._fall_apex: float | None = None
         self._dot_pool = 0.0
         self.ghosts: list[list] = []
 
@@ -87,6 +90,13 @@ class Player:
     @property
     def is_parrying(self) -> bool:
         return self.parry_timer > 0
+
+    @property
+    def plunge_hitbox(self) -> pygame.Rect | None:
+        if not (self.plunging or self.plunge_landed):
+            return None
+        r = self.body.rect
+        return pygame.Rect(r.centerx - 16, r.bottom - 24, 32, 34)
 
     def on_hit(self, amount: int, source_pos, knockback: float) -> None:
         self.take_hit(amount, source_pos, knockback)
@@ -114,12 +124,10 @@ class Player:
     def heal(self, amount: int) -> None:
         self.health.heal(amount)
 
-    def _apply_fall_damage(self) -> None:
-        if self._fall_speed < config.FALL_SAFE_SPEED:
+    def _apply_fall_damage(self, drop: float) -> None:
+        if drop <= config.FALL_SAFE_HEIGHT:
             return
-        damage = int(
-            round((self._fall_speed - config.FALL_SAFE_SPEED) * config.FALL_DAMAGE_SCALE)
-        )
+        damage = int(round((drop - config.FALL_SAFE_HEIGHT) * config.FALL_DAMAGE_SCALE))
         if damage <= 0:
             return
         self.health.take_damage(damage)
@@ -133,6 +141,7 @@ class Player:
         self.dash_cooldown = max(0.0, self.dash_cooldown - dt)
         self.invuln = max(0.0, self.invuln - dt)
         self.drop_timer = max(0.0, self.drop_timer - dt)
+        self.plunge_landed = False
         self.hurt_timer = max(0.0, self.hurt_timer - dt)
         self.parry_timer = max(0.0, self.parry_timer - dt)
         self.parry_cooldown = max(0.0, self.parry_cooldown - dt)
@@ -167,8 +176,6 @@ class Player:
 
         stunned = self.status.stunned
         was_airborne = not self.body.on_ground
-        if was_airborne:
-            self._fall_speed = max(self._fall_speed, self.body.vel_y)
         axis = 0.0 if stunned else inp.get_axis("move_x")
         if axis != 0:
             self.facing = 1 if axis > 0 else -1
@@ -209,6 +216,8 @@ class Player:
             target = axis * config.MOVE_SPEED * self.status.speed_multiplier()
             if self.attack_phase and self.body.on_ground:
                 target *= 0.3
+            if self.plunging:
+                target *= 0.25
             accel = config.GROUND_ACCEL if self.body.on_ground else config.AIR_ACCEL
             if axis == 0 and self.body.on_ground:
                 accel = config.GROUND_DECEL
@@ -231,6 +240,10 @@ class Player:
                 self.drop_timer = config.DROP_THROUGH_TIME
                 self.jump_buffer = 0.0
                 self.body.on_ground = False
+                self.coyote = 0.0
+                self.plunging = True
+                self.body.vel_y = max(self.body.vel_y, 60.0)
+                self.attack_phase = None
             elif (
                 self.jump_buffer > 0
                 and not stunned
@@ -255,8 +268,21 @@ class Player:
 
         if self.body.on_ground:
             if was_airborne:
-                self._apply_fall_damage()
-            self._fall_speed = 0.0
+                drop = 0.0
+                if self._fall_apex is not None:
+                    drop = max(0.0, self.body.rect.bottom - self._fall_apex)
+                if self.plunging:
+                    self.plunging = False
+                    self.plunge_landed = True
+                else:
+                    self._apply_fall_damage(drop)
+            self._fall_apex = None
+        else:
+            bottom = float(self.body.rect.bottom)
+            if self._fall_apex is None:
+                self._fall_apex = bottom
+            else:
+                self._fall_apex = min(self._fall_apex, bottom)
 
         if not stunned:
             self._update_attack(dt)
@@ -267,6 +293,8 @@ class Player:
 
         if self.dash_time > 0:
             self.state = "dash"
+        elif self.plunging or self.plunge_landed:
+            self.state = "plunge"
         elif self.attack_phase:
             self.state = "attack"
         elif not self.body.on_ground:
@@ -280,11 +308,27 @@ class Player:
             self.anim.play(self._animation_name())
             self.anim.update(dt)
 
-    def _attack_animation_name(self) -> str:
+    def _weapon_clip_profile(self) -> str:
+        weapon_id = self.weapon.get("id")
+        if (
+            weapon_id
+            and self.anim
+            and f"attack_{weapon_id}_windup" in self.anim.clips
+        ):
+            return weapon_id
         weapon_class = self.weapon.get("class", "sword")
         if weapon_class not in WEAPON_ANIM_CLASSES:
             weapon_class = "sword"
-        return f"attack_{weapon_class}_{self.attack_phase}"
+        return weapon_class
+
+    def _attack_animation_name(self) -> str:
+        return f"attack_{self._weapon_clip_profile()}_{self.attack_phase}"
+
+    def _plunge_animation_name(self) -> str:
+        weapon_id = self.weapon.get("id")
+        if weapon_id and self.anim and f"plunge_{weapon_id}" in self.anim.clips:
+            return f"plunge_{weapon_id}"
+        return "fall"
 
     def _animation_name(self) -> str:
         if not self.health.alive:
@@ -299,6 +343,8 @@ class Player:
             return self._attack_animation_name()
         if self.parry_timer > 0:
             return "parry"
+        if self.plunging or self.plunge_landed:
+            return self._plunge_animation_name()
         if not self.body.on_ground:
             return "jump" if self.body.vel_y < 0 else "fall"
         if abs(self.body.vel_x) > 5:
@@ -307,13 +353,13 @@ class Player:
 
     def _update_attack(self, dt: float) -> None:
         if self.attack_phase is None:
-            if self.attack_buffer > 0 and self.dash_time <= 0:
+            if self.attack_buffer > 0 and self.dash_time <= 0 and not self.plunging:
                 self.attack_phase = "windup"
                 self.attack_timer = self.weapon["windup_ms"] / 1000.0
                 self.attack_buffer = 0.0
                 self.attack_hit = False
                 self.swing_id += 1
-                self.attack_power = weapon_damage(self.weapon, self)
+                self.attack_power = weapon_damage(self.weapon, self) + self.bonus_attack
                 if self.counter_timer > 0:
                     self.attack_power *= COUNTER_MULTIPLIER
                     self.counter_timer = 0.0
