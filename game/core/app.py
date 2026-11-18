@@ -4,14 +4,14 @@ from game import config
 from game.core.event_bus import EventBus
 from game.core.input import InputManager
 from game.core.scene_manager import SceneManager
-from game.scenes.run import PracticeScene
+from game.scenes.run import RunScene
 
 
 class Game:
     def __init__(self) -> None:
         pygame.init()
         pygame.key.stop_text_input()
-        pygame.display.set_caption("Emberloop — M1 Prototype")
+        pygame.display.set_caption("余烬回环 — 青篁岭 · 竹坞客栈")
         self.window = pygame.display.set_mode(
             (config.WINDOW_WIDTH, config.WINDOW_HEIGHT)
         )
@@ -28,7 +28,7 @@ class Game:
             config.WINDOW_WIDTH // config.INTERNAL_WIDTH,
             config.WINDOW_HEIGHT // config.INTERNAL_HEIGHT,
         )
-        self.scenes.push(PracticeScene(self))
+        self.scenes.push(RunScene(self))
 
     def quit(self) -> None:
         self.running = False

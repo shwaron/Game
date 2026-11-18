@@ -1,7 +1,9 @@
-"""Generate stick-figure skeleton animation strips.
+"""Generate placeholder pixel sprites for the wuxia swordsman and inn spirits.
 
-Bones are drawn as 2px lines between joints so poses read clearly.
-Replace generated files with real art using the same paths/frame counts.
+Player art is built from the joint-pose rig but rendered as a robed wuxia
+character. Enemies stay on the stick-figure rig; wine imps carry a gourd and
+paper runners wear a talisman so their silhouettes read at a glance. Replace
+generated files with real art using the same paths/frame counts.
 """
 
 import math
@@ -16,7 +18,8 @@ import pygame
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "sprites"
 
-PLAYER_CELL = (32, 40)
+PLAYER_CELL = (52, 40)
+PLAYER_ART_DX = 10
 ENEMY_CELL = (24, 36)
 
 SKIN = (232, 213, 176)
@@ -25,11 +28,26 @@ EMBER = (255, 154, 60)
 EYE = (30, 26, 40)
 SLASH = (255, 210, 122)
 FLASH = (255, 245, 230)
-CRAWLER = (150, 96, 84)
-CRAWLER_DARK = (104, 62, 56)
-ARCHER = (160, 150, 170)
-ARCHER_DARK = (108, 99, 124)
-BOW = (107, 91, 62)
+CRAWLER = (176, 112, 70)
+CRAWLER_DARK = (112, 68, 44)
+ARCHER = (226, 210, 176)
+ARCHER_DARK = (156, 138, 112)
+BOW = (78, 60, 44)
+TALISMAN = (176, 58, 48)
+
+ROBE = (60, 54, 76)
+ROBE_DARK = (38, 33, 50)
+ROBE_LIGHT = (100, 92, 122)
+BOOT = (28, 24, 38)
+SILVER = (206, 208, 220)
+SILVER_DIM = (148, 150, 166)
+BELT = (40, 34, 30)
+BELT_METAL = (190, 174, 120)
+STEEL = (214, 218, 228)
+HAIR = (30, 26, 38)
+HAIR_HI = (78, 68, 92)
+IRON = (122, 118, 138)
+IRON_DARK = (84, 80, 98)
 
 
 def line(surface, color, a, b, width=2):
@@ -56,6 +74,13 @@ def save_strip(rel: str, cell: tuple[int, int], frames: int, painter) -> None:
     print(f"wrote {path.relative_to(ROOT)}")
 
 
+def player_painter(painter):
+    def wrapped(surface, index, ox):
+        painter(surface, index, ox + PLAYER_ART_DX)
+
+    return wrapped
+
+
 # --- player skeleton -------------------------------------------------------
 
 
@@ -78,7 +103,9 @@ def player_pose(**overrides):
     return pose
 
 
-def draw_player_skeleton(surface, ox, pose, color=SKIN, dark=SKIN_DARK, eye=True):
+def draw_player_character(
+    surface, ox, pose, ghost=False, flash=False, dim=False, alpha=255
+):
     def pt(name):
         x, y = pose[name]
         return (ox + x, y)
@@ -95,31 +122,247 @@ def draw_player_skeleton(surface, ox, pose, color=SKIN, dark=SKIN_DARK, eye=True
     near_foot = pt("near_foot")
     far_knee = pt("far_knee")
     far_foot = pt("far_foot")
+    hair_dx, hair_dy = pose.get("hair", (-1, 0))
+    skirt_dx = pose.get("skirt", 0.0)
 
-    line(surface, dark, chest, far_elbow)
-    line(surface, dark, far_elbow, far_hand)
-    line(surface, dark, pelvis, far_knee)
-    line(surface, dark, far_knee, far_foot)
+    if dim:
+        layer = pygame.Surface(PLAYER_CELL, pygame.SRCALPHA)
+        draw_player_character(layer, 0, pose)
+        layer.set_alpha(alpha)
+        surface.blit(layer, (ox, 0))
+        return
 
-    line(surface, color, neck, pelvis, 2)
-    line(surface, color, (chest[0] - 4, chest[1]), (chest[0] + 4, chest[1]))
-    line(surface, color, (pelvis[0] - 3, pelvis[1]), (pelvis[0] + 3, pelvis[1]))
-    line(surface, color, chest, near_elbow)
-    line(surface, color, near_elbow, near_hand)
-    line(surface, color, pelvis, near_knee)
-    line(surface, color, near_knee, near_foot)
+    if ghost or flash:
+        if ghost:
+            silhouette = (*ROBE_LIGHT, 50)
+            head_color = (*SKIN, 40)
+        else:
+            silhouette = FLASH
+            head_color = FLASH
+        line(surface, silhouette, chest, near_elbow, 3)
+        line(surface, silhouette, near_elbow, near_hand, 4)
+        line(surface, silhouette, pelvis, near_knee, 3)
+        line(surface, silhouette, near_knee, near_foot, 3)
+        pygame.draw.polygon(
+            surface,
+            silhouette,
+            [
+                (chest[0] - 5, chest[1] - 1),
+                (chest[0] + 5, chest[1] - 1),
+                (pelvis[0] + 4, pelvis[1] + 10),
+                (pelvis[0] - 6, pelvis[1] + 10),
+            ],
+        )
+        pygame.draw.circle(
+            surface, head_color, (round(head[0]), round(head[1])), 3
+        )
+        return
 
-    line(surface, EMBER, (chest[0] - 3, chest[1]), (chest[0] + 3, chest[1]), 1)
-    dot(surface, color, near_hand, 1)
-    dot(surface, color, far_hand, 1)
-    pygame.draw.circle(surface, color, (round(head[0]), round(head[1])), 4, 2)
-    if eye:
-        dot(surface, EYE, (head[0] + 2, head[1] - 1), 1)
+    # ponytail flows behind the body
+    root = (head[0] - 2, head[1] - 3)
+    mid = (root[0] - 4 + hair_dx * 0.4, root[1] + 5 + hair_dy * 0.4)
+    tip = (root[0] - 6 + hair_dx, root[1] + 11 + hair_dy)
+    line(surface, HAIR, root, mid, 2)
+    line(surface, HAIR, mid, tip, 2)
+    line(surface, HAIR_HI, (root[0] - 1, root[1] + 1), mid, 1)
+    dot(surface, SILVER, root, 1)
+
+    # far limbs
+    line(surface, ROBE_DARK, chest, far_elbow, 3)
+    line(surface, ROBE_DARK, far_elbow, far_hand, 4)
+    dot(surface, SKIN_DARK, far_hand, 1)
+    line(surface, ROBE_DARK, pelvis, far_knee, 3)
+    line(surface, BOOT, far_knee, far_foot, 3)
+    pygame.draw.rect(
+        surface, BOOT, (round(far_foot[0]) - 2, round(far_foot[1]) - 1, 4, 3)
+    )
+
+    # long robe skirt
+    waist_y = pelvis[1] - 1
+    hem_y = 38
+    hem_center = pelvis[0] + skirt_dx
+    pygame.draw.polygon(
+        surface,
+        ROBE,
+        [
+            (round(pelvis[0] - 5), round(waist_y)),
+            (round(pelvis[0] + 5), round(waist_y)),
+            (round(hem_center + 6), hem_y),
+            (round(hem_center - 7), hem_y),
+        ],
+    )
+    line(
+        surface,
+        ROBE_DARK,
+        (pelvis[0] + 1, waist_y + 2),
+        (hem_center + 2, hem_y - 1),
+        1,
+    )
+    line(
+        surface,
+        SILVER_DIM,
+        (hem_center - 6, hem_y - 1),
+        (hem_center + 5, hem_y - 1),
+        1,
+    )
+    line(
+        surface,
+        ROBE_LIGHT,
+        (pelvis[0] + 4, waist_y + 1),
+        (hem_center + 5, hem_y - 2),
+        1,
+    )
+
+    # torso robe with silver shoulder embroidery
+    pygame.draw.polygon(
+        surface,
+        ROBE,
+        [
+            (round(chest[0] - 5), round(chest[1] - 1)),
+            (round(chest[0] + 5), round(chest[1] - 1)),
+            (round(pelvis[0] + 4), round(pelvis[1] - 2)),
+            (round(pelvis[0] - 4), round(pelvis[1] - 2)),
+        ],
+    )
+    line(
+        surface,
+        ROBE_LIGHT,
+        (chest[0] + 4, chest[1]),
+        (pelvis[0] + 3, pelvis[1] - 3),
+        1,
+    )
+    line(surface, SILVER_DIM, (neck[0] - 2, neck[1]), (chest[0], chest[1] + 4), 1)
+    line(surface, SILVER_DIM, (neck[0] + 2, neck[1]), (chest[0] + 1, chest[1] + 5), 1)
+    line(surface, SILVER, (chest[0] - 5, chest[1] - 1), (chest[0] - 2, chest[1] - 2), 1)
+    line(surface, SILVER_DIM, (chest[0] - 5, chest[1] + 1), (chest[0] - 3, chest[1]), 1)
+    line(surface, SILVER, (chest[0] + 5, chest[1] - 1), (chest[0] + 2, chest[1] - 2), 1)
+    line(surface, SILVER_DIM, (chest[0] + 5, chest[1] + 1), (chest[0] + 3, chest[1]), 1)
+    pygame.draw.rect(
+        surface,
+        SILVER_DIM,
+        (round(chest[0]) - 7, round(chest[1]) - 1, 3, 2),
+    )
+    pygame.draw.rect(
+        surface,
+        SILVER,
+        (round(chest[0]) + 4, round(chest[1]) - 1, 3, 2),
+    )
+
+    # belt with metal buckle
+    by = pelvis[1] - 2
+    pygame.draw.rect(surface, BELT, (round(pelvis[0] - 5), round(by), 10, 3))
+    pygame.draw.rect(surface, BELT_METAL, (round(pelvis[0] - 2), round(by), 4, 2))
+    dot(surface, EMBER, (pelvis[0], by + 1), 1)
+
+    # sheathed sword hangs at the far hip
+    sheath_hip = (pelvis[0] - 4, pelvis[1] - 1)
+    sheath_tip = (pelvis[0] - 11 + skirt_dx * 0.4, pelvis[1] + 10)
+    line(surface, (48, 44, 62), sheath_hip, sheath_tip, 2)
+    dx = sheath_tip[0] - sheath_hip[0]
+    dy = sheath_tip[1] - sheath_hip[1]
+    length = math.hypot(dx, dy) or 1.0
+    px, py = -dy / length, dx / length
+    line(
+        surface,
+        SILVER_DIM,
+        (sheath_tip[0] - px * 1.5, sheath_tip[1] - py * 1.5),
+        (sheath_tip[0] + px * 1.5, sheath_tip[1] + py * 1.5),
+        1,
+    )
+    line(
+        surface,
+        BELT_METAL,
+        (sheath_hip[0] + 2, sheath_hip[1]),
+        (sheath_hip[0] - 2, sheath_hip[1] - 5),
+        2,
+    )
+    dot(surface, SILVER, (sheath_hip[0] - 2, sheath_hip[1] - 5), 1)
+
+    # near leg and boot
+    line(surface, ROBE_DARK, pelvis, near_knee, 3)
+    line(surface, BOOT, near_knee, near_foot, 3)
+    pygame.draw.rect(
+        surface, BOOT, (round(near_foot[0]) - 2, round(near_foot[1]) - 1, 5, 3)
+    )
+    line(
+        surface,
+        SILVER_DIM,
+        (near_foot[0] - 2, near_foot[1] + 1),
+        (near_foot[0] + 2, near_foot[1] + 1),
+        1,
+    )
+
+    # near wide sleeve
+    line(surface, ROBE, chest, near_elbow, 4)
+    line(surface, ROBE, near_elbow, near_hand, 5)
+    line(
+        surface,
+        SILVER_DIM,
+        (near_hand[0] - 1, near_hand[1] - 2),
+        (near_hand[0] + 1, near_hand[1] + 1),
+        1,
+    )
+    dot(surface, SKIN, near_hand, 1)
+
+    # head, hair and topknot
+    line(surface, SKIN_DARK, (neck[0], neck[1] - 2), (neck[0], neck[1] + 1), 3)
+    pygame.draw.rect(
+        surface, SKIN, (round(head[0]) - 2, round(head[1]) - 3, 6, 7)
+    )
+    pygame.draw.rect(
+        surface, HAIR, (round(head[0]) - 3, round(head[1]) - 4, 7, 3)
+    )
+    pygame.draw.rect(
+        surface, HAIR, (round(head[0]) - 4, round(head[1]) - 2, 2, 5)
+    )
+    pygame.draw.rect(
+        surface, HAIR, (round(head[0]) - 3, round(head[1]) + 1, 2, 3)
+    )
+    line(surface, HAIR_HI, (head[0] - 2, head[1] - 3), (head[0] + 2, head[1] - 3), 1)
+    pygame.draw.rect(
+        surface, HAIR, (round(head[0]) - 1, round(head[1]) - 7, 3, 3)
+    )
+    line(surface, SILVER, (head[0] - 2, head[1] - 6), (head[0] + 3, head[1] - 6), 1)
+    dot(surface, EYE, (head[0] + 2, head[1] - 1), 1)
 
 
 def draw_blade(surface, hand, tip):
-    line(surface, FLASH, hand, tip, 2)
-    line(surface, SLASH, hand, tip, 1)
+    dx, dy = tip[0] - hand[0], tip[1] - hand[1]
+    length = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / length, dy / length
+    px, py = -uy, ux
+
+    line(
+        surface,
+        BOW,
+        (hand[0] - ux * 3, hand[1] - uy * 3),
+        (hand[0] + ux * 1, hand[1] + uy * 1),
+        2,
+    )
+    dot(surface, BELT_METAL, (hand[0] - ux * 3, hand[1] - uy * 3), 1)
+    gx, gy = hand[0] + ux * 2, hand[1] + uy * 2
+    line(
+        surface,
+        SILVER,
+        (gx - px * 2.5, gy - py * 2.5),
+        (gx + px * 2.5, gy + py * 2.5),
+        2,
+    )
+    base = (gx + ux * 1.5, gy + uy * 1.5)
+    outline = [
+        (base[0] - px * 2.2, base[1] - py * 2.2),
+        (base[0] + px * 2.2, base[1] + py * 2.2),
+        (tip[0] + ux * 1.2, tip[1] + uy * 1.2),
+    ]
+    pygame.draw.polygon(surface, (18, 16, 24), outline)
+    blade = [
+        (base[0] - px * 1.2, base[1] - py * 1.2),
+        (base[0] + px * 1.2, base[1] + py * 1.2),
+        (tip[0], tip[1]),
+    ]
+    pygame.draw.polygon(surface, STEEL, blade)
+    line(surface, FLASH, base, (tip[0] - ux, tip[1] - uy), 1)
+    dot(surface, EMBER, (hand[0], hand[1] + 2), 1)
 
 
 def draw_spear(surface, tail, tip):
@@ -130,26 +373,35 @@ def draw_spear(surface, tail, tip):
     base = (tip[0] - ux * 4, tip[1] - uy * 4)
     pygame.draw.polygon(
         surface,
-        FLASH,
+        STEEL,
         [
             (round(tip[0]), round(tip[1])),
             (round(base[0] - uy * 2), round(base[1] + ux * 2)),
             (round(base[0] + uy * 2), round(base[1] - ux * 2)),
         ],
     )
+    line(surface, FLASH, base, tip, 1)
+    line(
+        surface,
+        SILVER,
+        (round(base[0] - uy * 2), round(base[1] + ux * 2)),
+        (round(base[0] + uy * 2), round(base[1] - ux * 2)),
+        1,
+    )
 
 
 def draw_hammer(surface, hand, head_topleft, size=(14, 7)):
     x, y = head_topleft
     line(surface, BOW, hand, (x + size[0] // 2, y + size[1] - 1), 2)
-    pygame.draw.rect(surface, ARCHER, (x, y, size[0], size[1]))
-    pygame.draw.rect(surface, ARCHER_DARK, (x, y + size[1] - 2, size[0], 2))
-    pygame.draw.rect(surface, FLASH, (x + 2, y + 2, 3, 2))
+    pygame.draw.rect(surface, IRON, (x, y, size[0], size[1]))
+    pygame.draw.rect(surface, IRON_DARK, (x, y + size[1] - 2, size[0], 2))
+    pygame.draw.rect(surface, SILVER, (x + 2, y + 2, 3, 2))
 
 
 def draw_staff(surface, top, bottom, orb_center=None, orb_radius=0):
     line(surface, BOW, top, bottom, 2)
     if orb_center and orb_radius > 0:
+        dot(surface, SILVER, (top[0], top[1] + 1), 1)
         pygame.draw.circle(
             surface,
             EMBER,
@@ -174,8 +426,10 @@ def draw_idle(surface, i, ox):
         far_hand=(21 - sway, 26 + bob),
         near_knee=(15, 31 + bob),
         far_knee=(18, 31 + bob),
+        hair=(sway * 0.5, 0),
+        skirt=sway * 0.6,
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
 
 
 def draw_run(surface, i, ox):
@@ -195,8 +449,10 @@ def draw_run(surface, i, ox):
         near_foot=(16 + 8 * swing, 38 - max(0.0, swing) * 2),
         far_knee=(16 - 4 * swing, 31 + bob),
         far_foot=(16 - 8 * swing, 38 - max(0.0, -swing) * 2),
+        hair=(-lean - swing * 0.6, 0),
+        skirt=-swing * 2,
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
 
 
 def draw_jump(surface, i, ox):
@@ -213,8 +469,10 @@ def draw_jump(surface, i, ox):
         near_foot=(22, 32),
         far_knee=(12, 27),
         far_foot=(10, 32),
+        hair=(-1, 1),
+        skirt=1,
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
 
 
 def draw_fall(surface, i, ox):
@@ -228,8 +486,10 @@ def draw_fall(surface, i, ox):
         near_foot=(21, 36),
         far_knee=(13, 29),
         far_foot=(10, 36),
+        hair=(-1, -1),
+        skirt=sway,
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
 
 
 def draw_dash(surface, i, ox):
@@ -244,16 +504,11 @@ def draw_dash(surface, i, ox):
         near_foot=(10, 35),
         far_knee=(12, 28),
         far_foot=(7, 33),
+        hair=(-2, 0),
+        skirt=-3,
     )
     for ghost in range(1, i + 1):
-        draw_player_skeleton(
-            surface,
-            ox - ghost * 5,
-            ghost_pose,
-            color=(*SKIN, 60),
-            dark=(*SKIN_DARK, 60),
-            eye=False,
-        )
+        draw_player_character(surface, ox - ghost * 5, ghost_pose, ghost=True)
     pose = player_pose(
         head=(20, 9),
         neck=(19, 13),
@@ -267,14 +522,16 @@ def draw_dash(surface, i, ox):
         near_foot=(10, 35),
         far_knee=(12, 28),
         far_foot=(7, 33),
+        hair=(-3, 0),
+        skirt=-4,
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     line(surface, EMBER, (ox + 2, 14 + i * 3), (ox + 6, 14 + i * 3), 2)
 
 
 def draw_attack_sword_windup(surface, i, ox):
     hand = (13 + i * 2, 10 + i * 3)
-    tip = (hand[0] - 5, hand[1] - 6)
+    tip = (hand[0] - 8, hand[1] - 9)
     pose = player_pose(
         head=(15, 8),
         neck=(15, 12),
@@ -287,15 +544,17 @@ def draw_attack_sword_windup(surface, i, ox):
         near_foot=(22, 38),
         far_knee=(13, 31),
         far_foot=(10, 38),
+        hair=(-2, 0),
+        skirt=-1,
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_blade(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
 
 
 def draw_attack_sword_active(surface, i, ox):
-    hands = [(18, 8), (23, 11), (27, 15), (26, 22)]
+    hands = [(19, 15), (23, 16), (25, 18), (25, 21)]
     hand = hands[i]
-    tip = (hand[0] + 7, hand[1] + 2 + i)
+    tip = (hand[0] + 15, hand[1] + 2 + i)
     pose = player_pose(
         head=(18, 8),
         neck=(17, 12),
@@ -308,21 +567,23 @@ def draw_attack_sword_active(surface, i, ox):
         near_foot=(24, 37),
         far_knee=(13, 31),
         far_foot=(9, 38),
+        hair=(1, 0),
+        skirt=2,
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_blade(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
     for arc in range(2):
-        y = 10 + i * 4 + arc * 5
+        y = 14 + i * 4 + arc * 5
         pygame.draw.polygon(
             surface,
             SLASH,
-            [(ox + 29, y), (ox + 31, y + 3), (ox + 29, y + 6)],
+            [(ox + 31, y), (ox + 33, y + 3), (ox + 31, y + 6)],
         )
 
 
 def draw_attack_sword_recovery(surface, i, ox):
     hand = (25, 20 + i * 2)
-    tip = (hand[0] + 5, hand[1] + 4 + i)
+    tip = (hand[0] + 10, hand[1] + 5 + i)
     pose = player_pose(
         head=(17, 9),
         neck=(16, 13),
@@ -335,8 +596,9 @@ def draw_attack_sword_recovery(surface, i, ox):
         near_foot=(22, 38),
         far_knee=(13, 31),
         far_foot=(10, 38),
+        skirt=1,
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_blade(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
     line(surface, SLASH, (ox + 27, 12 + i * 2), (ox + 29, 15 + i * 2), 1)
 
@@ -356,7 +618,7 @@ def draw_attack_dagger_windup(surface, i, ox):
         far_knee=(12, 30),
         far_foot=(10, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_blade(surface, (ox + 17, 18), (ox + 23, 15))
 
 
@@ -377,7 +639,7 @@ def draw_attack_dagger_active(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(9, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_blade(surface, (ox + hand[0] - 2, hand[1] + 1), (ox + tip[0], tip[1]))
     line(surface, FLASH, (ox + tip[0] - 5, tip[1] + 3), (ox + tip[0], tip[1] + 3), 1)
 
@@ -395,7 +657,7 @@ def draw_attack_dagger_recovery(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(10, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_blade(surface, (ox + hand[0], hand[1]), (ox + hand[0] + 4, hand[1]))
 
 
@@ -414,7 +676,7 @@ def draw_attack_hammer_windup(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(10, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_hammer(surface, (ox + 22, 5 + i), (ox + 14 + i, i))
 
 
@@ -433,7 +695,7 @@ def draw_attack_hammer_active(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(9, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_hammer(surface, (ox + 24, 10 + i * 12), (ox + 13, 4 + i * 14), (15, 8))
     if i == 1:
         for arc in range(3):
@@ -461,7 +723,7 @@ def draw_attack_hammer_recovery(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(9, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_hammer(surface, (ox + 24, 24 + i), (ox + 12, 30), (15, 7))
     if i < 3:
         dot(surface, FLASH, (ox + 8 + i * 6, 37), 1)
@@ -483,7 +745,7 @@ def draw_attack_spear_windup(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(9, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_spear(surface, (ox + 3, 20), (ox + 25 + i * 2, 17))
 
 
@@ -501,9 +763,11 @@ def draw_attack_spear_active(surface, i, ox):
         near_foot=(26, 36),
         far_knee=(13, 30),
         far_foot=(9, 38),
+        hair=(2, 0),
+        skirt=2,
     )
-    draw_player_skeleton(surface, ox, pose)
-    draw_spear(surface, (ox + 5, 19), (ox + 31, 17 + i))
+    draw_player_character(surface, ox, pose)
+    draw_spear(surface, (ox + 5, 19), (ox + 34, 17 + i))
     line(surface, SLASH, (ox + 2, 17 + i), (ox + 9, 17 + i), 1)
 
 
@@ -519,7 +783,7 @@ def draw_attack_spear_recovery(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(10, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_spear(surface, (ox + 7, 20), (ox + 29 - i * 3, 18))
 
 
@@ -537,7 +801,7 @@ def draw_attack_staff_windup(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(10, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_staff(
         surface,
         (ox + 25, 8),
@@ -561,15 +825,15 @@ def draw_attack_staff_active(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(9, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_staff(
         surface,
-        (ox + 28 + i, 8),
+        (ox + 27 + i, 8),
         (ox + 20, 32),
-        orb_center=(ox + 29 + i, 10),
+        orb_center=(ox + 28 + i, 10),
         orb_radius=3 + i,
     )
-    dot(surface, FLASH, (ox + 30, 12), 1)
+    dot(surface, FLASH, (ox + 29, 12), 1)
 
 
 def draw_attack_staff_recovery(surface, i, ox):
@@ -584,7 +848,7 @@ def draw_attack_staff_recovery(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(10, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     draw_staff(
         surface,
         (ox + 25, 9 + i),
@@ -608,7 +872,7 @@ def draw_parry(surface, i, ox):
         far_knee=(13, 31),
         far_foot=(10, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     line(surface, FLASH, (ox + 24, 7 - i), (ox + 24, 18), 2)
     line(surface, SLASH, (ox + 22, 6 - i), (ox + 22, 19), 1)
 
@@ -624,7 +888,7 @@ def draw_skill(surface, i, ox):
         far_knee=(13, 30),
         far_foot=(10, 38),
     )
-    draw_player_skeleton(surface, ox, pose)
+    draw_player_character(surface, ox, pose)
     pygame.draw.circle(surface, EMBER, (ox + 26, 14), 3 + i * 3, 1)
     pygame.draw.circle(surface, SLASH, (ox + 26, 14), 1 + i, 1)
 
@@ -643,7 +907,7 @@ def draw_hurt(surface, i, ox):
         far_knee=(12, 31),
         far_foot=(10, 38),
     )
-    draw_player_skeleton(surface, ox, pose, color=FLASH, eye=False)
+    draw_player_character(surface, ox, pose, flash=True)
 
 
 def draw_death(surface, i, ox):
@@ -705,8 +969,12 @@ def draw_death(surface, i, ox):
             far_foot=(9, 37),
         ),
     ]
-    color = SKIN if i < 2 else SKIN_DARK
-    draw_player_skeleton(surface, ox, poses[i], color=color, eye=i == 0)
+    if i < 2:
+        draw_player_character(surface, ox, poses[i])
+    else:
+        draw_player_character(
+            surface, ox, poses[i], dim=True, alpha=170 - (i - 2) * 90
+        )
     if i == 3:
         dot(surface, EMBER, (ox + 16, 37), 1)
 
@@ -764,6 +1032,10 @@ def draw_crawler_skeleton(
     pygame.draw.circle(surface, CRAWLER, (round(head[0]), round(head[1])), 3, 2)
     dot(surface, eye_color, (head[0] + 2, head[1]), 1)
     dot(surface, EMBER, (ox + 9, body_y - 1), 1)
+    pygame.draw.circle(
+        surface, CRAWLER_DARK, (round(ox + 7), body_y + 3), 3
+    )
+    pygame.draw.circle(surface, CRAWLER, (round(ox + 7), body_y + 3), 2)
 
 
 def draw_crawler_idle(surface, i, ox):
@@ -930,7 +1202,21 @@ def draw_archer_skeleton(surface, ox, pose, eye=True):
     line(surface, ARCHER, near_knee, near_foot)
 
     line(surface, ARCHER_DARK, (chest[0] - 2, chest[1]), (chest[0] + 2, chest[1]), 1)
+    pygame.draw.rect(
+        surface, TALISMAN, (chest[0] - 1, chest[1] + 2, 2, 7)
+    )
+    dot(surface, SLASH, (chest[0], chest[1] + 4), 1)
     pygame.draw.circle(surface, ARCHER, (round(head[0]), round(head[1])), 3, 2)
+    pygame.draw.polygon(
+        surface,
+        BOW,
+        [
+            (head[0] - 5, head[1] - 2),
+            (head[0] + 5, head[1] - 2),
+            (head[0], head[1] - 7),
+        ],
+    )
+    line(surface, (112, 88, 58), (head[0] - 5, head[1] - 2), (head[0] + 5, head[1] - 2), 1)
     if eye:
         dot(surface, EMBER, (head[0] + 1, head[1] - 1), 1)
 
@@ -1108,7 +1394,7 @@ def main() -> None:
         "death": (4, draw_death),
     }
     for name, (frames, painter) in player.items():
-        save_strip(f"player/{name}.png", PLAYER_CELL, frames, painter)
+        save_strip(f"player/{name}.png", PLAYER_CELL, frames, player_painter(painter))
 
     crawler = {
         "idle": (2, draw_crawler_idle),
@@ -1128,7 +1414,7 @@ def main() -> None:
         "stagger": (2, draw_archer_stagger),
         "death": (3, draw_archer_death),
     }
-    for enemy_id, clips in (("ash_crawler", crawler), ("bone_archer", archer)):
+    for enemy_id, clips in (("wine_imp", crawler), ("paper_runner", archer)):
         for name, (frames, painter) in clips.items():
             save_strip(f"enemies/{enemy_id}/{name}.png", ENEMY_CELL, frames, painter)
     pygame.quit()

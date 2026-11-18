@@ -1,7 +1,8 @@
 # 《余烬回环》模块接口与数据契约
 
-> 版本：v0.7
+> 版本：v0.11
 > 更新日期：2026-11-18
+> v0.11 调整：剧情标记与对话示例改为武侠主题（灯婆、货郎、焦面掌柜）
 > 相关文档：[分工协作指南](collaboration.md) · [总览与技术](../GAME_DESIGN.md) · [机制](mechanics.md) · [场景](scenes.md) · [剧情](story.md)
 
 本文件是三人协作的**唯一接口依据**。A 提供框架 API，B/C 通过 API、事件与数据契约通信。任何契约变更需三人评审，并同步更新本文件。
@@ -33,7 +34,7 @@ class SceneManager:
 规则：
 
 - 场景之间不直接引用，统一通过 SceneManager 切换。
-- 暂停/设置等覆盖场景用 `push/pop`；标题→祭坛→单局用 `replace`。
+- 暂停/设置等覆盖场景用 `push/pop`；标题→余烬祠→单局用 `replace`。
 - `dt` 为固定逻辑步长（1/60 秒）。
 
 ### 1.2 EventBus
@@ -275,7 +276,7 @@ class Animator:
   "schema_version": 1,
   "flags": {
     "met_moth": {"type": "bool", "default": false},
-    "proof_gate": {"type": "bool", "default": false},
+    "proof_door": {"type": "bool", "default": false},
     "death_count": {"type": "int", "default": 0}
   },
   "nodes": [
@@ -284,7 +285,7 @@ class Animator:
       "type": "dialogue",
       "text_key": "story.intro_wake",
       "conditions": {"loop_count": 0},
-      "flags_set": {"met_luyu": true},
+      "flags_set": {"met_lamp_keeper": true},
       "next": "tutorial_move"
     }
   ]
@@ -297,11 +298,11 @@ class Animator:
 {
   "schema_version": 1,
   "dialogues": {
-    "luyu_first": {
-      "speaker": "luyu",
+    "lamp_keeper_first": {
+      "speaker": "lamp_keeper",
       "lines": [
-        {"text_key": "dialogue.luyu_first_1", "condition": null},
-        {"text_key": "dialogue.luyu_first_2", "condition": {"death_count_gte": 1}}
+        {"text_key": "dialogue.lamp_keeper_first_1", "condition": null},
+        {"text_key": "dialogue.lamp_keeper_first_2", "condition": {"death_count_gte": 1}}
       ]
     }
   }
@@ -312,7 +313,7 @@ class Animator:
 
 - `game/data/localization/zh_CN.json`、`en.json`：扁平 `key → string`。
 - 缺失 key 回退到 zh_CN，并记录警告。
-- key 命名：`domain.object.field`，如 `weapon.broken_sword.name`。
+- key 命名：`domain.object.field`，如 `weapon.worn_flame_blade.name`。
 
 ### 3.10 animations.json
 
@@ -328,7 +329,7 @@ class Animator:
 | clips.*.loop | bool | 是否循环；非循环停在末帧 |
 | clips.*.events | object[] | 帧事件 `{frame, name}`，可选 |
 
-规则见 [动画引擎设计](animation.md)；占位帧为火柴人骨骼风格，由 `tools/gen_placeholder_sprites.py` 生成，替换正式素材须保持路径与帧数。
+规则见 [动画引擎设计](animation.md)；主角占位帧为武侠风黑衣剑客像素造型（52×40，`origin [17,2]`），敌人为火柴人骨骼占位，均由 `tools/gen_placeholder_sprites.py` 生成；替换正式素材须保持路径与帧数。
 
 ---
 
@@ -398,12 +399,12 @@ hud_state = {
 
 | flag | 类型 | 触发 |
 | --- | --- | --- |
-| `met_luyu` | bool | 序章对话 |
-| `met_scavenger` | bool | 城郊拾荒商 |
-| `met_moth` | bool | 洞窟墨蛾 |
-| `proof_gate` | bool | 击败焚炉门卫 |
-| `proof_memory` | bool | 击败孢子母体 |
-| `proof_time` | bool | 击败钟楼守夜者 |
+| `met_lamp_keeper` | bool | 序章灯婆对话 |
+| `met_peddler` | bool | 客栈货郎老柴 |
+| `met_moth` | bool | 药王谷墨蛾 |
+| `proof_door` | bool | 击败焦面掌柜 |
+| `proof_memory` | bool | 击败药人母 |
+| `proof_time` | bool | 击败守钟僧 |
 | `death_count` | int | 每次死亡 +1 |
 | `loop_count` | int | 每次回环 +1 |
 | `ending_chosen` | string | A/B/C |
@@ -440,3 +441,4 @@ hud_state = {
 | v0.7 | 2026-11-18 | 新增 Animator 接口与 animations.json 契约；占位像素帧生成器（待三人评审） |
 | v0.8 | 2026-11-18 | weapons.json 增加 max_level/level_scale/scaling；weapon_damage 计算与原语；HUD weapon 增加 level/damage/scaling_bonus（待三人评审） |
 | v0.9 | 2026-11-18 | 玩家攻击动画片段改为 `attack_<class>_windup/active/recovery`（5 类共 15 个）；weapon 的 class 决定动作模组（待三人评审） |
+| v0.10 | 2026-11-18 | 主角动画帧扩为 52×40、origin [17,2]；占位主角改为武侠风像素造型；攻击命中框调试绘制由 `config.DEBUG_HITBOXES` 控制（默认关闭） |

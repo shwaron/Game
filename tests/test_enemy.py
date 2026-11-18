@@ -40,7 +40,7 @@ CRAWLER = {
             "cooldown": 1.2,
         }
     ],
-    "loot_table": "ash_crawler",
+    "loot_table": "wine_imp",
 }
 
 ARCHER = {
@@ -60,7 +60,7 @@ ARCHER = {
             "projectile": {"speed": 160, "size": [6, 3], "life": 3.0},
         }
     ],
-    "loot_table": "bone_archer",
+    "loot_table": "paper_runner",
 }
 
 
@@ -78,7 +78,7 @@ def make_player(x, y=208):
 
 def test_chaser_moves_toward_player():
     room = make_room()
-    enemy = ChaserEnemy("ash_crawler", 300, 200, CRAWLER, room)
+    enemy = ChaserEnemy("wine_imp", 300, 200, CRAWLER, room)
     player = make_player(200)
     start_x = enemy.rect.x
     for _ in range(60):
@@ -89,7 +89,7 @@ def test_chaser_moves_toward_player():
 
 def test_chaser_attacks_in_range():
     room = make_room()
-    enemy = ChaserEnemy("ash_crawler", 230, 200, CRAWLER, room)
+    enemy = ChaserEnemy("wine_imp", 230, 200, CRAWLER, room)
     player = make_player(200)
     enemy.cooldown = 0.0
     for _ in range(20):
@@ -105,7 +105,7 @@ def test_chaser_attacks_in_range():
 
 def test_hit_staggers_and_interrupts():
     room = make_room()
-    enemy = ChaserEnemy("ash_crawler", 230, 200, CRAWLER, room)
+    enemy = ChaserEnemy("wine_imp", 230, 200, CRAWLER, room)
     player = make_player(200)
     enemy._start_attack()
     enemy.on_hit(5, (220, 208), 100)
@@ -115,7 +115,7 @@ def test_hit_staggers_and_interrupts():
 
 def test_archer_fires_projectile():
     room = make_room()
-    enemy = ShooterEnemy("bone_archer", 400, 200, ARCHER, room)
+    enemy = ShooterEnemy("paper_runner", 400, 200, ARCHER, room)
     player = make_player(250)
     enemy.cooldown = 0.0
     fired = False
@@ -130,7 +130,7 @@ def test_archer_fires_projectile():
 
 def test_enemy_dies_at_zero_hp():
     room = make_room()
-    enemy = ChaserEnemy("ash_crawler", 230, 200, CRAWLER, room)
+    enemy = ChaserEnemy("wine_imp", 230, 200, CRAWLER, room)
     enemy.on_hit(999, (220, 208), 0)
     assert not enemy.health.alive
     assert enemy.state == "dead"
@@ -139,7 +139,7 @@ def test_enemy_dies_at_zero_hp():
 def test_enemy_animation_follows_states():
     room = make_room()
     enemy = ChaserEnemy(
-        "ash_crawler", 300, 200, CRAWLER, room, make_enemy_anims()
+        "wine_imp", 300, 200, CRAWLER, room, make_enemy_anims()
     )
     player = make_player(200)
     for _ in range(5):
