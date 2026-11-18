@@ -356,7 +356,7 @@ class Player:
             pygame.draw.rect(surface, c["slash"], (arc_x, r.centery - 8, 4, 16))
 
         hitbox = self.attack_hitbox
-        if hitbox:
+        if config.DEBUG_HITBOXES and hitbox:
             pygame.draw.rect(surface, c["slash"], hitbox, 1)
         elif self.attack_phase == "windup" and not self.anim:
             spark_x = r.right if self.facing > 0 else r.left - 4

@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "enemies": {
-    "ash_crawler": {
-      "name_key": "enemy.ash_crawler.name",
-      "biome": "ash_outskirts",
-      "hp": 30,
+    "wine_imp": {
+      "name_key": "enemy.wine_imp.name",
+      "biome": "bamboo_inn",
+      "hp": 28,
       "damage": 8,
       "armor": 0,
       "speed": 60,
       "detect_range": 150,
       "attacks": [
         {
-          "id": "bite",
+          "id": "jar_bash",
           "windup_ms": 350,
           "active_ms": 100,
           "recovery_ms": 500,
@@ -22,13 +22,13 @@
         }
       ],
       "elite_affixes": [],
-      "loot_table": "ash_crawler",
+      "loot_table": "wine_imp",
       "sprite": ""
     },
-    "bone_archer": {
-      "name_key": "enemy.bone_archer.name",
-      "biome": "ash_outskirts",
-      "hp": 22,
+    "paper_runner": {
+      "name_key": "enemy.paper_runner.name",
+      "biome": "bamboo_inn",
+      "hp": 20,
       "damage": 6,
       "armor": 0,
       "speed": 45,
@@ -36,20 +36,20 @@
       "keep_distance": 90,
       "attacks": [
         {
-          "id": "shoot",
+          "id": "dart_throw",
           "windup_ms": 400,
           "active_ms": 60,
           "recovery_ms": 600,
           "cooldown": 1.8,
           "projectile": {
             "speed": 160,
-            "size": [6, 3],
+            "size": [6, 2],
             "life": 3.0
           }
         }
       ],
       "elite_affixes": [],
-      "loot_table": "bone_archer",
+      "loot_table": "paper_runner",
       "sprite": ""
     }
   }
