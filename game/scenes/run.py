@@ -28,11 +28,12 @@ from game.scenes.bamboo_world import (
     WOOD_DARK,
     WOOD_EDGE,
     build_world,
-    load_cjk_font,
 )
 from game.systems.combat import TEAM_ENEMY, TEAM_PLAYER, CombatSystem
 from game.systems.loot import load_tables, roll_table
 from game.systems.weapons import scaling_bonus, weapon_damage, weapon_level
+from game.ui import preferences, theme
+from game.ui.hud import HudRenderer
 
 TRANSITION_TIME = 0.16
 ROOM_TITLE_TIME = 2.8
@@ -93,11 +94,14 @@ class RunScene(Scene):
         self.font_title = None
         self.font_info = None
         self.font_tiny = None
+        self.hud = HudRenderer(self.loc)
+        self.run_time = 0.0
 
     def enter(self) -> None:
-        self.font_title = load_cjk_font(15)
-        self.font_info = load_cjk_font(10)
-        self.font_tiny = load_cjk_font(10)
+        fonts = theme.fonts()
+        self.font_title = fonts.heading
+        self.font_info = fonts.body
+        self.font_tiny = fonts.body
         self._start_run()
 
     @staticmethod
@@ -131,6 +135,7 @@ class RunScene(Scene):
         self.skill_cooldowns = {skill_id: 0.0 for skill_id in self.skills}
         self.cast_id = 0
         self.skill_fx = []
+        self.run_time = 0.0
         self._enter_room(START_ROOM, "start")
 
     def _enter_room(self, room_id: str, entry: str) -> None:
@@ -201,9 +206,12 @@ class RunScene(Scene):
     def update(self, dt: float) -> None:
         inp = self.game.input
         if inp.is_action_just_pressed("pause"):
-            self.game.quit()
+            from game.scenes.pause import PauseScene
+
+            self.game.scenes.push(PauseScene(self.game))
             return
 
+        self.run_time += dt
         self.room.art.update(dt)
         self.room_title_timer = max(0.0, self.room_title_timer - dt)
         self.clear_banner_timer = max(0.0, self.clear_banner_timer - dt)
@@ -234,7 +242,7 @@ class RunScene(Scene):
                     {"run_id": 0, "depth": 1, "cause": "combat"},
                 )
             if self.death_timer > 1.6:
-                self._start_run()
+                self._end_run("death")
             return
 
         self.camera.update(
@@ -378,6 +386,29 @@ class RunScene(Scene):
             "entry": exit_.entry,
         }
         self.exit_cooldown = 0.9
+
+    def _end_run(self, cause: str) -> None:
+        """本局结束：登记 run.ended 后交给死亡结算页。"""
+        depth = 1
+        self.game.bus.publish(
+            "run.ended",
+            {"outcome": cause, "embers": self.embers, "depth": depth},
+        )
+        from game.scenes.death import DeathScene
+
+        self.game.scenes.replace(
+            DeathScene(
+                self.game,
+                {
+                    "embers": self.embers,
+                    "kills": self.kills,
+                    "rooms": len(self.cleared),
+                    "total_rooms": len(self.rooms),
+                    "time": self.run_time,
+                    "zone": self.loc.get(self.room.title_key, self.room.room_id),
+                },
+            )
+        )
 
     def _spawn_projectile(self, enemy) -> None:
         spec = enemy.pending_projectile
@@ -651,110 +682,59 @@ class RunScene(Scene):
                 names.append(name)
         return self.loc.get("ui.hud.bestiary_prefix", "妖物：") + " · ".join(names)
 
-    def _draw_hud(self, surface: pygame.Surface) -> None:
-        c = config.COLORS
+    def hud_state(self) -> dict:
+        """按 interfaces.md 第 5 节组装只读状态，交给 ui.hud 渲染。"""
         p = self.player
-        rows = (
-            (
-                self.loc.get("ui.hud.hp", "气血"),
-                f"{p.health.hp}/{p.health.max_hp}",
-                p.health.hp / p.health.max_hp,
-                c["ember"],
-            ),
-            (
-                self.loc.get("ui.hud.stamina", "体力"),
-                f"{int(p.stamina.value)}/{int(p.stamina.max_value)}",
-                p.stamina.value / p.stamina.max_value,
-                c["stamina"],
-            ),
-            (
-                self.loc.get("ui.hud.mana", "内力"),
-                f"{int(p.mana.value)}/{int(p.mana.max_value)}",
-                p.mana.value / p.mana.max_value,
-                c["mana"],
-            ),
-        )
-        rendered_rows = []
-        max_right = 112
-        for i, (label, value_text, ratio, color) in enumerate(rows):
-            y = 8 + i * 12
-            label_surf = self.font_info.render(label, True, (222, 208, 180))
-            value_surf = self.font_info.render(value_text, True, (204, 192, 166))
-            rendered_rows.append((y, label_surf, value_surf, ratio, color))
-            max_right = max(max_right, 108 + value_surf.get_width())
-
-        skill_cd = self.skill_cooldowns.get("ember_burst", 0.0)
-        skill_name = self.loc.get("skill.ember_burst.name", "烬爆")
-        ready = self.loc.get("ui.hud.ready", "就绪")
-        seconds = self.loc.get("ui.hud.seconds", "秒")
-        state = ready if skill_cd <= 0 else f"{skill_cd:.1f}{seconds}"
-        skill_surf = self.font_info.render(f"{skill_name} {state}", True, HUD_GOLD)
-        max_right = max(max_right, 12 + skill_surf.get_width())
-
-        bestiary_surf = self.font_tiny.render(self._bestiary_text(), True, HUD_GOLD)
-        max_right = max(max_right, 12 + bestiary_surf.get_width())
-
-        panel = pygame.Surface((max_right - 2, 74), pygame.SRCALPHA)
-        panel.fill((8, 7, 6, 178))
-        surface.blit(panel, (6, 4))
-
-        for y, label_surf, value_surf, ratio, color in rendered_rows:
-            surface.blit(label_surf, (12, y - 1))
-            pygame.draw.rect(surface, (18, 16, 16), (38, y + 3, 64, 5))
-            pygame.draw.rect(surface, color, (38, y + 3, int(64 * ratio), 5))
-            pygame.draw.rect(surface, (50, 42, 36), (38, y + 3, 64, 5), 1)
-            surface.blit(value_surf, (108, y - 1))
-
-        surface.blit(skill_surf, (12, 44))
-        surface.blit(bestiary_surf, (12, 58))
-
+        skill_id = "ember_burst"
+        cooldown = self.skill_cooldowns.get(skill_id, 0.0)
         weapon = self.weapon
-        bonus = scaling_bonus(weapon, p)
         name_key = weapon.get("name_key", f"weapon.{weapon.get('id')}.name")
-        weapon_name = self.loc.get(name_key, weapon.get("id", "?"))
-        weapon_line = (
-            f"{self.weapon_index + 1}/{len(self.weapon_slots)} "
-            f"{weapon_name} 等级{weapon_level(weapon)} "
-            f"{self.loc.get('ui.hud.damage', '伤害')} {weapon_damage(weapon, p):.1f}"
-            + (f" +{int(bonus * 100)}%" if bonus > 0 else "")
-        )
-        loot_line = f"余烬 {self.embers}   击杀 {self.kills}"
-        weapon_surf = self.font_tiny.render(weapon_line, True, (220, 210, 184))
-        loot_surf = self.font_tiny.render(loot_line, True, (166, 158, 138))
-        weapon_panel = pygame.Surface(
-            (
-                max(weapon_surf.get_width(), loot_surf.get_width()) + 10,
-                weapon_surf.get_height() + loot_surf.get_height() + 8,
+        show_hints = bool(preferences.get("show_hints", True))
+        return {
+            "hp": p.health.hp,
+            "max_hp": p.health.max_hp,
+            "stamina": p.stamina.value,
+            "max_stamina": p.stamina.max_value,
+            "mana": p.mana.value,
+            "max_mana": p.mana.max_value,
+            "embers": self.embers,
+            "kills": self.kills,
+            "skills": [
+                {
+                    "id": skill_id,
+                    "name": self.loc.get(f"skill.{skill_id}.name", skill_id),
+                    "cooldown": cooldown,
+                    "ready": cooldown <= 0,
+                }
+            ],
+            "weapon": {
+                "name": self.loc.get(name_key, weapon.get("id", "?")),
+                "slot": self.weapon_index + 1,
+                "slots": len(self.weapon_slots),
+                "level": weapon_level(weapon),
+                "damage_text": f"{weapon_damage(weapon, p):.1f}",
+                "bonus": scaling_bonus(weapon, p),
+            },
+            "bestiary": self._bestiary_text(),
+            "hints": [
+                self.loc.get(
+                    "ui.hud.hint1",
+                    "A/D 移动  空格 跳  Shift 冲刺  J 攻击  K 弹反",
+                ),
+                self.loc.get(
+                    "ui.hud.hint2",
+                    "Q 换武器  U 烬爆  M 舆图  R 重来  ESC 暂停",
+                ),
+            ],
+            "hint_alpha": (
+                min(1.0, self.hint_timer / 1.2)
+                if show_hints and self.hint_timer > 0
+                else 0.0
             ),
-            pygame.SRCALPHA,
-        )
-        weapon_panel.fill((8, 7, 6, 178))
-        surface.blit(weapon_panel, (472 - weapon_panel.get_width(), 6))
-        surface.blit(weapon_surf, (472 - weapon_surf.get_width() - 4, 7))
-        surface.blit(
-            loot_surf,
-            (
-                472 - loot_surf.get_width() - 4,
-                7 + weapon_surf.get_height() + 2,
-            ),
-        )
+        }
 
-        if self.hint_timer > 0:
-            hint_lines = (
-                "A/D 移动  空格 跳  Shift 冲刺  J 攻击  K 弹反",
-                "Q 换武器  U 烬爆  M 舆图  R 重来  ESC 离开",
-            )
-            rendered = [
-                self.font_tiny.render(line, True, (206, 192, 162))
-                for line in hint_lines
-            ]
-            plate_w = max(line.get_width() for line in rendered) + 8
-            plate = pygame.Surface((plate_w, 26), pygame.SRCALPHA)
-            plate.fill((8, 7, 6, 168))
-            plate.blit(rendered[0], (4, 0))
-            plate.blit(rendered[1], (4, 11))
-            plate.set_alpha(int(255 * min(1.0, self.hint_timer / 1.2)))
-            surface.blit(plate, (10, 240))
+    def _draw_hud(self, surface: pygame.Surface) -> None:
+        self.hud.draw(surface, self.hud_state())
 
     def _draw_room_title(self, surface: pygame.Surface) -> None:
         if self.room_title_timer <= 0:
