@@ -74,6 +74,8 @@ class RunScene(Scene):
         self.combat = CombatSystem(self.rng)
         self.player = None
         self.enemies: list = []
+        self.room_enemies: dict[str, list] = {}
+        self.focus_exit = None
         self.projectiles: list = []
         self.pickups: list = []
         self._loot_sources: dict[int, tuple[str, int]] = {}
@@ -117,6 +119,8 @@ class RunScene(Scene):
         self.weapon = self.weapon_slots[0]
         self.player = Player(0, 0, self.weapon, self.player_anims)
         self.enemies = []
+        self.room_enemies = {}
+        self.focus_exit = None
         self.projectiles = []
         self.pickups = []
         self._loot_sources = {}
@@ -163,11 +167,10 @@ class RunScene(Scene):
 
         self.combat = CombatSystem(self.rng)
         self.combat.register(self.player)
-        self.enemies = []
-        if room.room_id not in self.cleared:
-            self.enemies = [self._spawn_enemy(spawn) for spawn in room.spawns]
-            for enemy in self.enemies:
-                self.combat.register(enemy)
+        self.enemies = self._load_room_enemies(room)
+        for enemy in self.enemies:
+            self.combat.register(enemy)
+        self.focus_exit = None
         self.projectiles = []
         self.pickups = []
         self._loot_sources = {}
@@ -184,6 +187,25 @@ class RunScene(Scene):
         self.clear_banner_timer = 0.0
         self.exit_cooldown = 0.55
         self.discovered.add(room.room_id)
+
+    def _load_room_enemies(self, room) -> list:
+        """一局内每个房间的敌人只生成一次。
+
+        离开房间时保留残血、站位与存活状态，回来沿用同一批实例；
+        已清房间缓存空列表，不会再次刷新。
+        """
+        if room.room_id in self.room_enemies:
+            alive = [
+                enemy for enemy in self.room_enemies[room.room_id] if enemy.health.alive
+            ]
+            self.room_enemies[room.room_id] = alive
+            return alive
+        if room.room_id in self.cleared or not room.spawns:
+            self.room_enemies[room.room_id] = []
+            return []
+        enemies = [self._spawn_enemy(spawn) for spawn in room.spawns]
+        self.room_enemies[room.room_id] = enemies
+        return enemies
 
     def _spawn_enemy(self, spawn: dict):
         enemy_id = spawn["enemy_id"]
@@ -360,11 +382,10 @@ class RunScene(Scene):
             self.cleared.add(self.room.room_id)
             self.clear_banner_timer = 2.4
 
-        if self.exit_cooldown <= 0 and self.player.health.alive:
-            for exit_ in self.room.exits:
-                if self.player.rect.colliderect(exit_.rect):
-                    self._begin_transition(exit_)
-                    break
+        self.focus_exit = (
+            self._exit_under_player() if self.player.health.alive else None
+        )
+        self._try_use_exit(inp)
 
     def _update_transition(self, dt: float) -> None:
         self.transition["timer"] -= dt
@@ -377,6 +398,22 @@ class RunScene(Scene):
             self.transition = {"phase": "in", "timer": TRANSITION_TIME}
         else:
             self.transition = None
+
+    def _exit_under_player(self):
+        """玩家当前站着的出口；没有则返回 None。"""
+        for exit_ in self.room.exits:
+            if self.player.rect.colliderect(exit_.rect):
+                return exit_
+        return None
+
+    def _try_use_exit(self, inp) -> bool:
+        """站在门口按交互键才传送，避免战斗中被门自动吸走。"""
+        if self.focus_exit is None or self.exit_cooldown > 0:
+            return False
+        if not inp.is_action_just_pressed("interact"):
+            return False
+        self._begin_transition(self.focus_exit)
+        return True
 
     def _begin_transition(self, exit_) -> None:
         self.transition = {
@@ -580,15 +617,17 @@ class RunScene(Scene):
                     color,
                     (rect.x if rect.centerx < WIDTH else rect.right - 2, rect.y + 14, 2, 58),
                 )
-                pygame.draw.polygon(
-                    surface,
-                    color,
-                    [
-                        (rect.centerx - 3, rect.y + 26),
-                        (rect.centerx + 3, rect.y + 26),
-                        (rect.centerx, rect.y + 32),
-                    ],
-                )
+                if exit_ is not self.focus_exit:
+                    # 玩家站在门里时改用屏幕提示，箭头会压住角色头顶。
+                    pygame.draw.polygon(
+                        surface,
+                        color,
+                        [
+                            (rect.centerx - 3, rect.y + 26),
+                            (rect.centerx + 3, rect.y + 26),
+                            (rect.centerx, rect.y + 32),
+                        ],
+                    )
 
     def _draw_exit_hints(self, surface: pygame.Surface) -> None:
         if self.transition is not None or not self.player.health.alive:
@@ -600,7 +639,13 @@ class RunScene(Scene):
                 continue
             sy = exit_.rect.centery - round(self.camera.y)
             near = abs(px - exit_.rect.centerx) < 104
-            color = (226, 196, 134) if near else (148, 120, 84)
+            focused = exit_ is self.focus_exit
+            if focused:
+                color = (246, 216, 158)
+            elif near:
+                color = (226, 196, 134)
+            else:
+                color = (148, 120, 84)
             pygame.draw.polygon(
                 surface,
                 color,
@@ -611,7 +656,12 @@ class RunScene(Scene):
             label = self.loc.get(exit_.label_key, exit_.target)
             if exit_.hidden:
                 label = self.loc.get("ui.exit.secret", "暗门") + " · " + label
-            text = self.font_tiny.render(label, True, (232, 214, 174))
+            usable = focused and self.exit_cooldown <= 0
+            if usable:
+                label = f"{self.loc.get('ui.exit.enter', 'E')} · {label}"
+            text = self.font_tiny.render(
+                label, True, (246, 216, 158) if usable else (232, 214, 174)
+            )
             plate = pygame.Surface(
                 (text.get_width() + 8, text.get_height() + 4), pygame.SRCALPHA
             )
@@ -619,6 +669,13 @@ class RunScene(Scene):
             lx = max(6, min(WIDTH - text.get_width() - 14, sx - text.get_width() // 2))
             ly = max(18, min(HEIGHT - 26, sy - text.get_height() - 12))
             surface.blit(plate, (lx - 4, ly - 2))
+            if usable:
+                pygame.draw.rect(
+                    surface,
+                    (196, 158, 88),
+                    (lx - 4, ly - 2, plate.get_width(), plate.get_height()),
+                    1,
+                )
             surface.blit(text, (lx, ly))
 
     def _draw_hazards(self, surface: pygame.Surface) -> None:

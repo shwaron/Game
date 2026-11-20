@@ -25,6 +25,7 @@
   "room.temple_gate.name": "寒山寺 · 山门",
   "room.temple_gate.subtitle": "第三关 · 山门未启",
   "ui.exit.secret": "暗门",
+  "ui.exit.enter": "E",
   "ui.hud.cleared_room": "此间已清",
   "ui.hud.peaceful": "此间暂无妖物",
   "ui.hud.bestiary_prefix": "妖物：",
@@ -95,5 +96,5 @@
   "ui.hud.embers": "余烬",
   "ui.hud.kills": "击杀",
   "ui.hud.hint1": "A/D 移动  空格 跳  Shift 冲刺  J 攻击  K 弹反",
-  "ui.hud.hint2": "Q 换武器  U 烬爆  M 舆图  R 重来  ESC 暂停"
+  "ui.hud.hint2": "Q 换武器  U 烬爆  E 进门  M 舆图  R 重来  ESC 暂停"
 }
