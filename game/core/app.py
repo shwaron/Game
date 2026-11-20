@@ -4,7 +4,7 @@ from game import config
 from game.core.event_bus import EventBus
 from game.core.input import InputManager
 from game.core.scene_manager import SceneManager
-from game.scenes.run import RunScene
+from game.scenes.title import TitleScene
 
 
 class Game:
@@ -28,7 +28,19 @@ class Game:
             config.WINDOW_WIDTH // config.INTERNAL_WIDTH,
             config.WINDOW_HEIGHT // config.INTERNAL_HEIGHT,
         )
-        self.scenes.push(RunScene(self))
+        self.scenes.push(TitleScene(self))
+
+    # -- 场景切换 -------------------------------------------------------
+    def start_run(self) -> None:
+        """开一局新回环；标题、暂停与结算页统一走这里。"""
+        from game.scenes.run import RunScene
+
+        self.scenes.replace(RunScene(self))
+
+    def return_to_title(self) -> None:
+        from game.scenes.title import TitleScene
+
+        self.scenes.replace(TitleScene(self))
 
     def quit(self) -> None:
         self.running = False
