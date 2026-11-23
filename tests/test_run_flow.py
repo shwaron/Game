@@ -178,3 +178,11 @@ def test_bow_shot_spawns_player_projectile(run):
     assert arrow.damage == 9
     assert arrow.vel_x > 0
     assert arrow.rect.left >= run.player.rect.right
+
+
+def test_click_closes_map(run):
+    run.show_map = True
+    run.handle_event(
+        pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
+    )
+    assert run.show_map is False

@@ -64,22 +64,17 @@ def test_current_weapon_preselected(game):
     assert scene.index == WEAPON_ORDER.index("zhanmadao")
 
 
-def test_mouse_click_selects_then_confirms(game):
+def test_mouse_hover_then_single_click_confirms(game):
     scene, confirmed, _ = make_scene(game)
-    scale = game._scale
-    from game import config
-
-    ox = (game.window.get_width() - config.INTERNAL_WIDTH * scale) // 2
-    oy = (game.window.get_height() - config.INTERNAL_HEIGHT * scale) // 2
     rect = scene.card_rects[2]
-    pos = (ox + rect.centerx * scale, oy + rect.centery * scale)
-    click = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos)
 
-    scene.handle_event(click)
+    scene.handle_event(pygame.event.Event(pygame.MOUSEMOTION, pos=rect.center))
     assert scene.index == 2
     assert confirmed == []
 
-    scene.handle_event(click)
+    scene.handle_event(
+        pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=rect.center)
+    )
     assert confirmed == ["zhanmadao"]
 
 

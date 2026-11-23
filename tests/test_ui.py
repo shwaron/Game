@@ -1,5 +1,12 @@
-import pygame
+import os
 
+os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+
+import pygame
+import pytest
+
+from game import config
 from game.scenes.settings import binding_text, key_name
 from game.ui import theme
 from game.ui.hud import HudRenderer
@@ -163,3 +170,75 @@ def test_settings_binding_labels():
     assert binding_text("attack") == "J / 左键"
     assert key_name(pygame.K_LSHIFT) == "Shift"
     assert binding_text("not_an_action") == ""
+
+
+# -- 鼠标点击 -----------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def game():
+    from game.core.app import Game
+
+    return Game()
+
+
+def window_pos(app, pos: tuple[int, int]) -> tuple[int, int]:
+    """内部坐标 → 窗口坐标，模拟玩家真实点击的位置。"""
+    scaled_w = config.INTERNAL_WIDTH * app._scale
+    scaled_h = config.INTERNAL_HEIGHT * app._scale
+    ox = (config.WINDOW_WIDTH - scaled_w) // 2
+    oy = (config.WINDOW_HEIGHT - scaled_h) // 2
+    return (pos[0] * app._scale + ox, pos[1] * app._scale + oy)
+
+
+def test_mouse_event_is_converted_to_internal_space(game):
+    assert game.internal_pos(window_pos(game, (240, 135))) == (240, 135)
+    assert game.internal_pos(window_pos(game, (0, 0))) == (0, 0)
+
+    click = pygame.event.Event(
+        pygame.MOUSEBUTTONDOWN, button=1, pos=window_pos(game, (240, 135))
+    )
+    local = game.internal_event(click)
+    assert local.pos == (240, 135)
+    assert local.button == 1
+
+    key = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
+    assert game.internal_event(key) is key
+
+
+def test_title_menu_click_opens_settings(game):
+    from game.scenes.settings import SettingsScene
+    from game.scenes.title import TitleScene
+
+    game.return_to_title()
+    scene = game.scenes.current
+    assert isinstance(scene, TitleScene)
+    scene.draw(game.screen)
+
+    rect = scene.menu.rects[1]
+    click = game.internal_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN, button=1, pos=window_pos(game, rect.center)
+        )
+    )
+    scene.handle_event(click)
+
+    assert isinstance(game.scenes.current, SettingsScene)
+    game.scenes.pop()
+
+
+def test_weapon_select_hover_then_single_click_confirms(game):
+    from game.scenes.weapon_select import WeaponSelectScene, WEAPON_ORDER
+
+    picked: list[str] = []
+    scene = WeaponSelectScene(game, picked.append, lambda: None)
+    scene.draw(game.screen)
+
+    target = scene.card_rects[3]
+    scene.handle_event(pygame.event.Event(pygame.MOUSEMOTION, pos=target.center))
+    assert scene.index == 3
+
+    scene.handle_event(
+        pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=target.center)
+    )
+    assert picked == [WEAPON_ORDER[3]]
