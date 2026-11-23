@@ -23,6 +23,7 @@ class Game:
         self.bus = EventBus()
         self.scenes = SceneManager()
         self.running = True
+        self.last_weapon_id = None
         self._accumulator = 0.0
         self._scale = min(
             config.WINDOW_WIDTH // config.INTERNAL_WIDTH,
@@ -31,11 +32,25 @@ class Game:
         self.scenes.push(TitleScene(self))
 
     # -- 场景切换 -------------------------------------------------------
-    def start_run(self) -> None:
+    def start_run(self, weapon_id: str | None = None) -> None:
         """开一局新回环；标题、暂停与结算页统一走这里。"""
         from game.scenes.run import RunScene
 
-        self.scenes.replace(RunScene(self))
+        weapon_id = weapon_id or self.last_weapon_id or "tachi"
+        self.last_weapon_id = weapon_id
+        self.scenes.replace(RunScene(self, weapon_id))
+
+    def open_weapon_select(self) -> None:
+        from game.scenes.weapon_select import WeaponSelectScene
+
+        self.scenes.replace(
+            WeaponSelectScene(
+                self,
+                on_confirm=self.start_run,
+                on_cancel=self.return_to_title,
+                current_id=self.last_weapon_id,
+            )
+        )
 
     def return_to_title(self) -> None:
         from game.scenes.title import TitleScene

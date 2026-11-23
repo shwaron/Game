@@ -53,7 +53,7 @@ class TitleScene(Scene):
 
     # -- 跳转 -----------------------------------------------------------
     def _start(self) -> None:
-        self.game.start_run()
+        self.game.open_weapon_select()
 
     def _open_settings(self) -> None:
         from game.scenes.settings import SettingsScene

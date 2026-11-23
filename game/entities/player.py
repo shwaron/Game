@@ -11,7 +11,7 @@ from game.systems.weapons import weapon_damage
 
 DEFAULT_WEAPON = {
     "base_damage": 12,
-    "hitbox": [30, 26],
+    "hitbox": [40, 26],
     "windup_ms": 50,
     "active_ms": 80,
     "recovery_ms": 140,
@@ -23,7 +23,7 @@ PARRY_COOLDOWN = 0.5
 COUNTER_DURATION = 1.2
 COUNTER_MULTIPLIER = 1.5
 HURT_IFRAMES = 0.8
-WEAPON_ANIM_CLASSES = {"sword", "dagger", "hammer", "spear", "staff"}
+WEAPON_ANIM_CLASSES = {"tachi", "longsword", "zhanmadao", "shield", "bow"}
 
 
 class Player:
@@ -64,6 +64,7 @@ class Player:
         self.attack_phase: str | None = None
         self.attack_timer = 0.0
         self.attack_hit = False
+        self.pending_shot = False
         self.attack_power = 0.0
         self.swing_id = 0
         self.death_reported = False
@@ -77,7 +78,7 @@ class Player:
 
     @property
     def attack_hitbox(self) -> pygame.Rect | None:
-        if self.attack_phase != "active":
+        if self.attack_phase != "active" or self.weapon.get("projectile"):
             return None
         w, h = self.weapon["hitbox"]
         r = self.body.rect
@@ -181,9 +182,12 @@ class Player:
                 inp.is_action_just_pressed("offhand")
                 and self.parry_cooldown <= 0
                 and self.dash_time <= 0
+                and self.weapon.get("parry_scale", 1.0) > 0
             ):
                 if self.stamina.spend(config.PARRY_STAMINA_COST):
-                    self.parry_timer = PARRY_WINDOW
+                    self.parry_timer = PARRY_WINDOW * self.weapon.get(
+                        "parry_scale", 1.0
+                    )
                     self.parry_cooldown = PARRY_COOLDOWN
             if (
                 inp.is_action_just_pressed("dash")
@@ -281,9 +285,9 @@ class Player:
             self.anim.update(dt)
 
     def _attack_animation_name(self) -> str:
-        weapon_class = self.weapon.get("class", "sword")
+        weapon_class = self.weapon.get("class", "longsword")
         if weapon_class not in WEAPON_ANIM_CLASSES:
-            weapon_class = "sword"
+            weapon_class = "longsword"
         return f"attack_{weapon_class}_{self.attack_phase}"
 
     def _animation_name(self) -> str:
@@ -315,7 +319,9 @@ class Player:
                 self.swing_id += 1
                 self.attack_power = weapon_damage(self.weapon, self)
                 if self.counter_timer > 0:
-                    self.attack_power *= COUNTER_MULTIPLIER
+                    self.attack_power *= self.weapon.get(
+                        "counter_multiplier", COUNTER_MULTIPLIER
+                    )
                     self.counter_timer = 0.0
             return
         self.attack_timer -= dt
@@ -324,6 +330,8 @@ class Player:
         if self.attack_phase == "windup":
             self.attack_phase = "active"
             self.attack_timer = self.weapon["active_ms"] / 1000.0
+            if self.weapon.get("projectile"):
+                self.pending_shot = True
         elif self.attack_phase == "active":
             self.attack_phase = "recovery"
             self.attack_timer = self.weapon["recovery_ms"] / 1000.0

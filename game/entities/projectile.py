@@ -5,6 +5,8 @@ from game.systems.combat import TEAM_ENEMY, TEAM_PLAYER
 
 
 class Projectile:
+    _next_uid = 0
+
     def __init__(
         self,
         x: float,
@@ -27,6 +29,9 @@ class Projectile:
         self.life = life
         self.gravity = gravity
         self.dead = False
+        # id() 会被短命对象复用，命中登记必须用独立序号
+        self.uid = Projectile._next_uid
+        Projectile._next_uid += 1
 
     @property
     def rect(self) -> pygame.Rect:

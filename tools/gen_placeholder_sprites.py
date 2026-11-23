@@ -18,8 +18,8 @@ import pygame
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "sprites"
 
-PLAYER_CELL = (52, 40)
-PLAYER_ART_DX = 10
+PLAYER_CELL = (64, 40)
+PLAYER_ART_DX = 16
 ENEMY_CELL = (24, 36)
 
 SKIN = (232, 213, 176)
@@ -365,6 +365,131 @@ def draw_blade(surface, hand, tip):
     dot(surface, EMBER, (hand[0], hand[1] + 2), 1)
 
 
+def draw_curved_blade(surface, hand, tip, bend=3.0):
+    dx, dy = tip[0] - hand[0], tip[1] - hand[1]
+    length = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / length, dy / length
+    px, py = -uy, ux
+    line(
+        surface,
+        BOW,
+        (hand[0] - ux * 4, hand[1] - uy * 4),
+        (hand[0] + ux * 1, hand[1] + uy * 1),
+        2,
+    )
+    dot(surface, BELT_METAL, (hand[0] - ux * 4, hand[1] - uy * 4), 1)
+    gx, gy = hand[0] + ux * 2, hand[1] + uy * 2
+    line(
+        surface,
+        BELT_METAL,
+        (gx - px * 2, gy - py * 2),
+        (gx + px * 2, gy + py * 2),
+        2,
+    )
+    base = (gx + ux * 1.5, gy + uy * 1.5)
+    ctrl = (
+        (base[0] + tip[0]) / 2 + px * bend,
+        (base[1] + tip[1]) / 2 + py * bend,
+    )
+    spine = []
+    edge = []
+    for step in range(7):
+        t = step / 6
+        mt = 1 - t
+        x = mt * mt * base[0] + 2 * mt * t * ctrl[0] + t * t * tip[0]
+        y = mt * mt * base[1] + 2 * mt * t * ctrl[1] + t * t * tip[1]
+        width = 2.0 * (1 - t * 0.75)
+        spine.append((x - px * width * 0.4, y - py * width * 0.4))
+        edge.append((x + px * width, y + py * width))
+    pygame.draw.polygon(surface, (18, 16, 24), spine + edge[::-1])
+    pygame.draw.polygon(surface, STEEL, spine + edge[::-1])
+    line(surface, FLASH, spine[0], spine[-2], 1)
+    dot(surface, EMBER, (hand[0], hand[1] + 2), 1)
+
+
+def draw_longsword(surface, hand, tip):
+    dx, dy = tip[0] - hand[0], tip[1] - hand[1]
+    length = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / length, dy / length
+    px, py = -uy, ux
+    line(
+        surface,
+        BOW,
+        (hand[0] - ux * 4, hand[1] - uy * 4),
+        (hand[0] + ux * 1, hand[1] + uy * 1),
+        2,
+    )
+    dot(surface, BELT_METAL, (hand[0] - ux * 4, hand[1] - uy * 4), 1)
+    gx, gy = hand[0] + ux * 2, hand[1] + uy * 2
+    line(
+        surface,
+        SILVER,
+        (gx - px * 3.5, gy - py * 3.5),
+        (gx + px * 3.5, gy + py * 3.5),
+        2,
+    )
+    base = (gx + ux * 1.5, gy + uy * 1.5)
+    outline = [
+        (base[0] - px * 2.4, base[1] - py * 2.4),
+        (base[0] + px * 2.4, base[1] + py * 2.4),
+        (tip[0] + ux * 1.2, tip[1] + uy * 1.2),
+    ]
+    pygame.draw.polygon(surface, (18, 16, 24), outline)
+    blade = [
+        (base[0] - px * 1.4, base[1] - py * 1.4),
+        (base[0] + px * 1.4, base[1] + py * 1.4),
+        (tip[0], tip[1]),
+    ]
+    pygame.draw.polygon(surface, STEEL, blade)
+    line(surface, FLASH, base, (tip[0] - ux, tip[1] - uy), 1)
+    dot(surface, EMBER, (hand[0], hand[1] + 2), 1)
+
+
+def draw_zhanmadao(surface, hand, tip):
+    dx, dy = tip[0] - hand[0], tip[1] - hand[1]
+    length = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / length, dy / length
+    px, py = -uy, ux
+    line(
+        surface,
+        BOW,
+        (hand[0] - ux * 9, hand[1] - uy * 9),
+        (hand[0] + ux * 2, hand[1] + uy * 2),
+        2,
+    )
+    dot(surface, IRON, (hand[0] - ux * 9, hand[1] - uy * 9), 1)
+    line(surface, TALISMAN, (hand[0] - ux * 6, hand[1] - uy * 6), (hand[0] - ux * 4, hand[1] - uy * 4), 1)
+    gx, gy = hand[0] + ux * 3, hand[1] + uy * 3
+    line(
+        surface,
+        IRON,
+        (gx - px * 2.5, gy - py * 2.5),
+        (gx + px * 2.5, gy + py * 2.5),
+        2,
+    )
+    base = (gx + ux * 1.5, gy + uy * 1.5)
+    blade_len = length - 6
+    wide = 3.2
+    outline = [
+        (base[0] - px * 1.2, base[1] - py * 1.2),
+        (base[0] + px * wide, base[1] + py * wide),
+        (base[0] + ux * blade_len * 0.7 + px * wide * 0.9, base[1] + uy * blade_len * 0.7 + py * wide * 0.9),
+        (tip[0] + ux * 1.5, tip[1] + uy * 1.5),
+        (base[0] + ux * blade_len * 0.5 - px * 1.0, base[1] + uy * blade_len * 0.5 - py * 1.0),
+    ]
+    pygame.draw.polygon(surface, (18, 16, 24), outline)
+    inner = [
+        (base[0] - px * 0.6, base[1] - py * 0.6),
+        (base[0] + px * (wide - 1), base[1] + py * (wide - 1)),
+        (base[0] + ux * blade_len * 0.7 + px * (wide - 1) * 0.9, base[1] + uy * blade_len * 0.7 + py * (wide - 1) * 0.9),
+        (tip[0], tip[1]),
+        (base[0] + ux * blade_len * 0.5 - px * 0.4, base[1] + uy * blade_len * 0.5 - py * 0.4),
+    ]
+    pygame.draw.polygon(surface, STEEL, inner)
+    line(surface, FLASH, base, (tip[0] - ux * 2, tip[1] - uy * 2), 1)
+    dot(surface, EMBER, (hand[0], hand[1] + 2), 1)
+
+
 def draw_spear(surface, tail, tip):
     line(surface, BOW, tail, tip, 2)
     dx, dy = tip[0] - tail[0], tip[1] - tail[1]
@@ -529,32 +654,33 @@ def draw_dash(surface, i, ox):
     line(surface, EMBER, (ox + 2, 14 + i * 3), (ox + 6, 14 + i * 3), 2)
 
 
-def draw_attack_sword_windup(surface, i, ox):
-    hand = (13 + i * 2, 10 + i * 3)
-    tip = (hand[0] - 8, hand[1] - 9)
+def draw_attack_tachi_windup(surface, i, ox):
+    hand = (14 + i, 18 - i)
+    tip = (hand[0] - 6, hand[1] - 8)
     pose = player_pose(
-        head=(15, 8),
-        neck=(15, 12),
-        chest=(15, 15),
-        near_elbow=(11 + i, 14),
+        head=(15, 9),
+        neck=(15, 13),
+        chest=(15, 16),
+        pelvis=(15, 26),
+        near_elbow=(12, 17),
         near_hand=hand,
-        far_elbow=(20, 18),
-        far_hand=(23, 20),
+        far_elbow=(19, 19),
+        far_hand=(21, 23),
         near_knee=(19, 30),
         near_foot=(22, 38),
-        far_knee=(13, 31),
+        far_knee=(12, 31),
         far_foot=(10, 38),
         hair=(-2, 0),
         skirt=-1,
     )
     draw_player_character(surface, ox, pose)
-    draw_blade(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
+    draw_curved_blade(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]), bend=2.5)
 
 
-def draw_attack_sword_active(surface, i, ox):
-    hands = [(19, 15), (23, 16), (25, 18), (25, 21)]
+def draw_attack_tachi_active(surface, i, ox):
+    hands = [(18, 15), (22, 16), (24, 18)]
     hand = hands[i]
-    tip = (hand[0] + 15, hand[1] + 2 + i)
+    tip = (hand[0] + 16, hand[1] + 1 + i)
     pose = player_pose(
         head=(18, 8),
         neck=(17, 12),
@@ -571,19 +697,19 @@ def draw_attack_sword_active(surface, i, ox):
         skirt=2,
     )
     draw_player_character(surface, ox, pose)
-    draw_blade(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
+    draw_curved_blade(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]), bend=2.5)
     for arc in range(2):
-        y = 14 + i * 4 + arc * 5
+        y = 13 + i * 4 + arc * 5
         pygame.draw.polygon(
             surface,
             SLASH,
-            [(ox + 31, y), (ox + 33, y + 3), (ox + 31, y + 6)],
+            [(ox + 40, y), (ox + 42, y + 3), (ox + 40, y + 6)],
         )
 
 
-def draw_attack_sword_recovery(surface, i, ox):
-    hand = (25, 20 + i * 2)
-    tip = (hand[0] + 10, hand[1] + 5 + i)
+def draw_attack_tachi_recovery(surface, i, ox):
+    hand = (23, 20 + i)
+    tip = (hand[0] + 12, hand[1] + 4 + i)
     pose = player_pose(
         head=(17, 9),
         neck=(16, 13),
@@ -599,263 +725,321 @@ def draw_attack_sword_recovery(surface, i, ox):
         skirt=1,
     )
     draw_player_character(surface, ox, pose)
-    draw_blade(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
-    line(surface, SLASH, (ox + 27, 12 + i * 2), (ox + 29, 15 + i * 2), 1)
+    draw_curved_blade(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]), bend=2.5)
+    line(surface, SLASH, (ox + 32, 13 + i * 2), (ox + 34, 16 + i * 2), 1)
 
 
-def draw_attack_dagger_windup(surface, i, ox):
+def draw_attack_longsword_windup(surface, i, ox):
+    hand = (13 + i * 2, 10 + i * 2)
+    tip = (hand[0] - 7, hand[1] - 9)
     pose = player_pose(
-        head=(15, 10),
-        neck=(15, 14),
-        chest=(15, 17),
-        pelvis=(15, 26),
-        near_elbow=(14, 20),
-        near_hand=(17, 18),
-        far_elbow=(19, 19),
-        far_hand=(21, 23),
-        near_knee=(19, 30),
-        near_foot=(21, 38),
-        far_knee=(12, 30),
-        far_foot=(10, 38),
-    )
-    draw_player_character(surface, ox, pose)
-    draw_blade(surface, (ox + 17, 18), (ox + 23, 15))
-
-
-def draw_attack_dagger_active(surface, i, ox):
-    hand = (20 + i * 2, 15 + i * 3)
-    tip = (hand[0] + 6, hand[1] - 1)
-    pose = player_pose(
-        head=(17, 9),
-        neck=(16, 13),
-        chest=(16, 16),
-        pelvis=(16, 25),
-        near_elbow=(17, 18),
-        near_hand=hand,
-        far_elbow=(12, 18),
-        far_hand=(9, 22),
-        near_knee=(20, 30),
-        near_foot=(24, 38),
-        far_knee=(13, 31),
-        far_foot=(9, 38),
-    )
-    draw_player_character(surface, ox, pose)
-    draw_blade(surface, (ox + hand[0] - 2, hand[1] + 1), (ox + tip[0], tip[1]))
-    line(surface, FLASH, (ox + tip[0] - 5, tip[1] + 3), (ox + tip[0], tip[1] + 3), 1)
-
-
-def draw_attack_dagger_recovery(surface, i, ox):
-    hand = (22 - i * 2, 20 + i)
-    pose = player_pose(
-        head=(16, 9),
-        neck=(16, 13),
-        chest=(16, 16),
-        near_elbow=(17, 19),
-        near_hand=hand,
-        near_knee=(19, 31),
-        near_foot=(22, 38),
-        far_knee=(13, 31),
-        far_foot=(10, 38),
-    )
-    draw_player_character(surface, ox, pose)
-    draw_blade(surface, (ox + hand[0], hand[1]), (ox + hand[0] + 4, hand[1]))
-
-
-def draw_attack_hammer_windup(surface, i, ox):
-    pose = player_pose(
-        head=(16, 9),
-        neck=(16, 13),
-        chest=(16, 16),
-        pelvis=(16, 26),
-        near_elbow=(20, 10),
-        near_hand=(22, 5 + i),
-        far_elbow=(12, 10),
-        far_hand=(14, 6 + i),
-        near_knee=(19, 31),
-        near_foot=(22, 38),
-        far_knee=(13, 31),
-        far_foot=(10, 38),
-    )
-    draw_player_character(surface, ox, pose)
-    draw_hammer(surface, (ox + 22, 5 + i), (ox + 14 + i, i))
-
-
-def draw_attack_hammer_active(surface, i, ox):
-    pose = player_pose(
-        head=(17, 10),
-        neck=(16, 14),
-        chest=(16, 17),
-        pelvis=(16, 26),
-        near_elbow=(19, 16 + i * 4),
-        near_hand=(24, 10 + i * 12),
-        far_elbow=(12, 18),
-        far_hand=(9, 22),
-        near_knee=(20, 30),
-        near_foot=(23, 38),
-        far_knee=(13, 31),
-        far_foot=(9, 38),
-    )
-    draw_player_character(surface, ox, pose)
-    draw_hammer(surface, (ox + 24, 10 + i * 12), (ox + 13, 4 + i * 14), (15, 8))
-    if i == 1:
-        for arc in range(3):
-            line(
-                surface,
-                SLASH,
-                (ox + 26 + arc * 2, 34 - arc * 4),
-                (ox + 29 + arc * 2, 38 - arc * 2),
-                1,
-            )
-
-
-def draw_attack_hammer_recovery(surface, i, ox):
-    pose = player_pose(
-        head=(13, 13),
-        neck=(14, 16),
-        chest=(15, 19),
-        pelvis=(16, 26),
-        near_elbow=(20, 22),
-        near_hand=(24, 24 + i),
-        far_elbow=(11, 21),
-        far_hand=(9, 26),
-        near_knee=(19, 31),
-        near_foot=(23, 38),
-        far_knee=(13, 31),
-        far_foot=(9, 38),
-    )
-    draw_player_character(surface, ox, pose)
-    draw_hammer(surface, (ox + 24, 24 + i), (ox + 12, 30), (15, 7))
-    if i < 3:
-        dot(surface, FLASH, (ox + 8 + i * 6, 37), 1)
-        line(surface, SLASH, (ox + 27, 24 - i * 2), (ox + 30, 22 - i * 2), 1)
-
-
-def draw_attack_spear_windup(surface, i, ox):
-    pose = player_pose(
-        head=(14, 8),
-        neck=(14, 12),
+        head=(15, 8),
+        neck=(15, 12),
         chest=(15, 15),
-        pelvis=(16, 25),
-        near_elbow=(12, 18),
-        near_hand=(12 + i * 2, 19),
-        far_elbow=(19, 18),
-        far_hand=(20, 23),
+        near_elbow=(11 + i, 14),
+        near_hand=hand,
+        far_elbow=(20, 18),
+        far_hand=(23, 20),
         near_knee=(19, 30),
         near_foot=(22, 38),
         far_knee=(13, 31),
-        far_foot=(9, 38),
-    )
-    draw_player_character(surface, ox, pose)
-    draw_spear(surface, (ox + 3, 20), (ox + 25 + i * 2, 17))
-
-
-def draw_attack_spear_active(surface, i, ox):
-    pose = player_pose(
-        head=(20, 9),
-        neck=(19, 13),
-        chest=(19, 16),
-        pelvis=(18, 25),
-        near_elbow=(16, 18),
-        near_hand=(21, 18 + i),
-        far_elbow=(12, 19),
-        far_hand=(9, 23),
-        near_knee=(23, 29),
-        near_foot=(26, 36),
-        far_knee=(13, 30),
-        far_foot=(9, 38),
-        hair=(2, 0),
-        skirt=2,
-    )
-    draw_player_character(surface, ox, pose)
-    draw_spear(surface, (ox + 5, 19), (ox + 34, 17 + i))
-    line(surface, SLASH, (ox + 2, 17 + i), (ox + 9, 17 + i), 1)
-
-
-def draw_attack_spear_recovery(surface, i, ox):
-    pose = player_pose(
-        head=(17, 9),
-        neck=(16, 13),
-        chest=(16, 16),
-        near_elbow=(15, 18),
-        near_hand=(19, 19),
-        near_knee=(20, 30),
-        near_foot=(23, 38),
-        far_knee=(13, 31),
         far_foot=(10, 38),
+        hair=(-2, 0),
+        skirt=-1,
     )
     draw_player_character(surface, ox, pose)
-    draw_spear(surface, (ox + 7, 20), (ox + 29 - i * 3, 18))
+    draw_longsword(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
 
 
-def draw_attack_staff_windup(surface, i, ox):
-    pose = player_pose(
-        head=(16, 8),
-        neck=(16, 12),
-        chest=(16, 15),
-        near_elbow=(18, 17),
-        near_hand=(22, 20),
-        far_elbow=(12, 18),
-        far_hand=(10, 23),
-        near_knee=(18, 30),
-        near_foot=(20, 38),
-        far_knee=(13, 31),
-        far_foot=(10, 38),
-    )
-    draw_player_character(surface, ox, pose)
-    draw_staff(
-        surface,
-        (ox + 25, 8),
-        (ox + 25, 36),
-        orb_center=(ox + 26, 6),
-        orb_radius=2 + i,
-    )
-
-
-def draw_attack_staff_active(surface, i, ox):
+def draw_attack_longsword_active(surface, i, ox):
+    hands = [(19, 14), (23, 16), (25, 19), (25, 22)]
+    hand = hands[i]
+    tip = (hand[0] + 18, hand[1] + 3 + i)
     pose = player_pose(
         head=(18, 8),
         neck=(17, 12),
         chest=(17, 15),
-        near_elbow=(19, 16),
-        near_hand=(23 + i, 17),
+        near_elbow=(15, 17),
+        near_hand=hand,
         far_elbow=(12, 18),
-        far_hand=(9, 22),
+        far_hand=(9, 21),
         near_knee=(21, 30),
-        near_foot=(24, 38),
+        near_foot=(24, 37),
         far_knee=(13, 31),
         far_foot=(9, 38),
+        hair=(1, 0),
+        skirt=2,
     )
     draw_player_character(surface, ox, pose)
-    draw_staff(
-        surface,
-        (ox + 27 + i, 8),
-        (ox + 20, 32),
-        orb_center=(ox + 28 + i, 10),
-        orb_radius=3 + i,
+    draw_longsword(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
+    for arc in range(2):
+        y = 13 + i * 4 + arc * 5
+        pygame.draw.polygon(
+            surface,
+            SLASH,
+            [(ox + 46, y), (ox + 48, y + 3), (ox + 46, y + 6)],
+        )
+
+
+def draw_attack_longsword_recovery(surface, i, ox):
+    hand = (25, 21 + i)
+    tip = (hand[0] + 13, hand[1] + 4 + i)
+    pose = player_pose(
+        head=(17, 9),
+        neck=(16, 13),
+        chest=(16, 16),
+        near_elbow=(18, 18),
+        near_hand=hand,
+        far_elbow=(12, 19),
+        far_hand=(9, 23),
+        near_knee=(19, 31),
+        near_foot=(22, 38),
+        far_knee=(13, 31),
+        far_foot=(10, 38),
+        skirt=1,
     )
-    dot(surface, FLASH, (ox + 29, 12), 1)
+    draw_player_character(surface, ox, pose)
+    draw_longsword(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
+    line(surface, SLASH, (ox + 33, 12 + i * 2), (ox + 35, 15 + i * 2), 1)
 
 
-def draw_attack_staff_recovery(surface, i, ox):
+def draw_attack_zhanmadao_windup(surface, i, ox):
+    hand = (16 + i, 16 - i)
+    tip = (3 + i, 2)
+    pose = player_pose(
+        head=(15, 9),
+        neck=(15, 13),
+        chest=(15, 16),
+        pelvis=(15, 26),
+        near_elbow=(13, 15),
+        near_hand=hand,
+        far_elbow=(17, 18),
+        far_hand=(hand[0] + 2, hand[1] + 3),
+        near_knee=(19, 30),
+        near_foot=(22, 38),
+        far_knee=(12, 31),
+        far_foot=(9, 38),
+        hair=(-2, 0),
+        skirt=-1,
+    )
+    draw_player_character(surface, ox, pose)
+    draw_zhanmadao(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
+
+
+def draw_attack_zhanmadao_active(surface, i, ox):
+    hands = [(18, 12), (22, 18)]
+    hand = hands[i]
+    tip = (hand[0] + 24, hand[1] + 8 + i * 6)
+    pose = player_pose(
+        head=(18, 9),
+        neck=(17, 13),
+        chest=(17, 16),
+        pelvis=(16, 26),
+        near_elbow=(15, 15 + i * 2),
+        near_hand=hand,
+        far_elbow=(13, 17 + i * 2),
+        far_hand=(hand[0] - 3, hand[1] + 2),
+        near_knee=(21, 30),
+        near_foot=(24, 37),
+        far_knee=(13, 31),
+        far_foot=(9, 38),
+        hair=(2, 0),
+        skirt=3,
+    )
+    draw_player_character(surface, ox, pose)
+    draw_zhanmadao(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
+    for arc in range(3):
+        y = 12 + i * 8 + arc * 5
+        pygame.draw.polygon(
+            surface,
+            SLASH,
+            [(ox + 50, y), (ox + 53, y + 3), (ox + 50, y + 6)],
+        )
+
+
+def draw_attack_zhanmadao_recovery(surface, i, ox):
+    settle = min(i, 2)
+    hand = (22, 24 + settle)
+    tip = (hand[0] + 20, hand[1] + 6)
+    pose = player_pose(
+        head=(16, 10 + settle),
+        neck=(16, 14 + settle),
+        chest=(16, 17 + settle),
+        pelvis=(16, 26),
+        near_elbow=(18, 20 + settle),
+        near_hand=hand,
+        far_elbow=(14, 21 + settle),
+        far_hand=(hand[0] - 3, hand[1] + 2),
+        near_knee=(19, 31),
+        near_foot=(23, 38),
+        far_knee=(13, 31),
+        far_foot=(9, 38),
+        skirt=1,
+    )
+    draw_player_character(surface, ox, pose)
+    draw_zhanmadao(surface, (ox + hand[0], hand[1]), (ox + tip[0], tip[1]))
+    if i < 3:
+        dot(surface, FLASH, (ox + 10 + i * 6, 37), 1)
+        line(surface, SLASH, (ox + 36, 22 - i * 2), (ox + 39, 20 - i * 2), 1)
+
+
+def draw_shield(surface, center, w=10, h=16):
+    x, y = center
+    rect = pygame.Rect(round(x - w / 2), round(y - h / 2), w, h)
+    pygame.draw.rect(surface, BOW, rect)
+    pygame.draw.rect(surface, IRON, rect, 1)
+    line(surface, IRON_DARK, (x, rect.y + 2), (x, rect.bottom - 2), 1)
+    dot(surface, BELT_METAL, (x, y), 2)
+
+
+def draw_attack_shield_windup(surface, i, ox):
+    hand = (13 - i, 19)
+    pose = player_pose(
+        head=(14, 9),
+        neck=(14, 13),
+        chest=(14, 16),
+        pelvis=(15, 26),
+        near_elbow=(11, 18),
+        near_hand=hand,
+        far_elbow=(19, 19),
+        far_hand=(21, 23),
+        near_knee=(19, 30),
+        near_foot=(22, 38),
+        far_knee=(12, 31),
+        far_foot=(9, 38),
+        hair=(-2, 0),
+        skirt=-1,
+    )
+    draw_player_character(surface, ox, pose)
+    draw_shield(surface, (ox + hand[0] + 3, hand[1] - 1))
+
+
+def draw_attack_shield_active(surface, i, ox):
+    hands = [(19, 16), (23, 17)]
+    hand = hands[i]
+    pose = player_pose(
+        head=(18, 8),
+        neck=(17, 12),
+        chest=(17, 15),
+        near_elbow=(15, 17),
+        near_hand=hand,
+        far_elbow=(12, 18),
+        far_hand=(9, 21),
+        near_knee=(21, 30),
+        near_foot=(24, 37),
+        far_knee=(13, 31),
+        far_foot=(9, 38),
+        hair=(1, 0),
+        skirt=2,
+    )
+    draw_player_character(surface, ox, pose)
+    draw_shield(surface, (ox + hand[0] + 5, hand[1] - 1))
+    for spark in range(2):
+        y = 12 + i * 5 + spark * 6
+        line(surface, SLASH, (ox + 38, y), (ox + 41, y + 2), 1)
+
+
+def draw_attack_shield_recovery(surface, i, ox):
+    hand = (21 - i * 2, 18 + i)
     pose = player_pose(
         head=(16, 9),
         neck=(16, 13),
         chest=(16, 16),
-        near_elbow=(18, 17),
-        near_hand=(22, 20),
-        near_knee=(18, 31),
-        near_foot=(20, 38),
+        near_elbow=(17, 18),
+        near_hand=hand,
+        far_elbow=(12, 19),
+        far_hand=(9, 23),
+        near_knee=(19, 31),
+        near_foot=(22, 38),
         far_knee=(13, 31),
         far_foot=(10, 38),
+        skirt=1,
     )
     draw_player_character(surface, ox, pose)
-    draw_staff(
-        surface,
-        (ox + 25, 9 + i),
-        (ox + 25, 36),
-        orb_center=(ox + 26, 7 + i),
-        orb_radius=max(1, 3 - i // 2),
+    draw_shield(surface, (ox + hand[0] + 4, hand[1] - 1))
+
+
+def draw_player_bow(surface, grip, tension=0, arrow=False):
+    x, y = grip
+    line(surface, BOW, (x, y - 9), (x, y + 9), 2)
+    line(surface, BOW, (x, y - 9), (x - 2, y - 6), 1)
+    line(surface, BOW, (x, y + 9), (x - 2, y + 6), 1)
+    string_x = x - 2 - tension
+    line(surface, FLASH, (x, y - 9), (string_x, y), 1)
+    line(surface, FLASH, (string_x, y), (x, y + 9), 1)
+    if arrow:
+        line(surface, SLASH, (string_x, y), (x + 6, y), 2)
+        pygame.draw.polygon(
+            surface,
+            FLASH,
+            [(x + 6, y), (x + 3, y - 2), (x + 3, y + 2)],
+        )
+
+
+def draw_attack_bow_windup(surface, i, ox):
+    grip = (20, 16)
+    pull = (14 - i * 2, 16)
+    pose = player_pose(
+        head=(15, 8),
+        neck=(15, 12),
+        chest=(15, 15),
+        near_elbow=(18, 16),
+        near_hand=grip,
+        far_elbow=(12 - i, 17),
+        far_hand=pull,
+        near_knee=(19, 30),
+        near_foot=(22, 38),
+        far_knee=(12, 31),
+        far_foot=(9, 38),
+        hair=(-1, 0),
+        skirt=-1,
     )
+    draw_player_character(surface, ox, pose)
+    draw_player_bow(surface, (ox + grip[0], grip[1]), tension=2 + i * 3, arrow=True)
+
+
+def draw_attack_bow_active(surface, i, ox):
+    grip = (21, 16)
+    pose = player_pose(
+        head=(16, 8),
+        neck=(16, 12),
+        chest=(16, 15),
+        near_elbow=(18, 16),
+        near_hand=grip,
+        far_elbow=(10, 17),
+        far_hand=(7, 18),
+        near_knee=(20, 30),
+        near_foot=(23, 38),
+        far_knee=(12, 31),
+        far_foot=(9, 38),
+        hair=(1, 0),
+        skirt=1,
+    )
+    draw_player_character(surface, ox, pose)
+    draw_player_bow(surface, (ox + grip[0], grip[1]))
+    ax = ox + 34 + i * 8
+    line(surface, SLASH, (ax, 15), (ax + 7, 15), 2)
+    pygame.draw.polygon(surface, FLASH, [(ax + 7, 15), (ax + 4, 13), (ax + 4, 17)])
+
+
+def draw_attack_bow_recovery(surface, i, ox):
+    grip = (20, 17 + i)
+    pose = player_pose(
+        head=(16, 9),
+        neck=(16, 13),
+        chest=(16, 16),
+        near_elbow=(18, 17 + i),
+        near_hand=grip,
+        far_elbow=(13, 19 + i),
+        far_hand=(11, 23 + i),
+        near_knee=(19, 31),
+        near_foot=(22, 38),
+        far_knee=(13, 31),
+        far_foot=(10, 38),
+        skirt=1,
+    )
+    draw_player_character(surface, ox, pose)
+    draw_player_bow(surface, (ox + grip[0], grip[1]))
 
 
 def draw_parry(surface, i, ox):
@@ -1373,21 +1557,21 @@ def main() -> None:
         "jump": (1, draw_jump),
         "fall": (2, draw_fall),
         "dash": (3, draw_dash),
-        "attack_sword_windup": (2, draw_attack_sword_windup),
-        "attack_sword_active": (4, draw_attack_sword_active),
-        "attack_sword_recovery": (4, draw_attack_sword_recovery),
-        "attack_dagger_windup": (1, draw_attack_dagger_windup),
-        "attack_dagger_active": (3, draw_attack_dagger_active),
-        "attack_dagger_recovery": (3, draw_attack_dagger_recovery),
-        "attack_hammer_windup": (3, draw_attack_hammer_windup),
-        "attack_hammer_active": (2, draw_attack_hammer_active),
-        "attack_hammer_recovery": (6, draw_attack_hammer_recovery),
-        "attack_spear_windup": (2, draw_attack_spear_windup),
-        "attack_spear_active": (2, draw_attack_spear_active),
-        "attack_spear_recovery": (4, draw_attack_spear_recovery),
-        "attack_staff_windup": (3, draw_attack_staff_windup),
-        "attack_staff_active": (3, draw_attack_staff_active),
-        "attack_staff_recovery": (4, draw_attack_staff_recovery),
+        "attack_tachi_windup": (2, draw_attack_tachi_windup),
+        "attack_tachi_active": (3, draw_attack_tachi_active),
+        "attack_tachi_recovery": (3, draw_attack_tachi_recovery),
+        "attack_longsword_windup": (2, draw_attack_longsword_windup),
+        "attack_longsword_active": (4, draw_attack_longsword_active),
+        "attack_longsword_recovery": (4, draw_attack_longsword_recovery),
+        "attack_zhanmadao_windup": (3, draw_attack_zhanmadao_windup),
+        "attack_zhanmadao_active": (2, draw_attack_zhanmadao_active),
+        "attack_zhanmadao_recovery": (6, draw_attack_zhanmadao_recovery),
+        "attack_shield_windup": (2, draw_attack_shield_windup),
+        "attack_shield_active": (2, draw_attack_shield_active),
+        "attack_shield_recovery": (3, draw_attack_shield_recovery),
+        "attack_bow_windup": (3, draw_attack_bow_windup),
+        "attack_bow_active": (2, draw_attack_bow_active),
+        "attack_bow_recovery": (4, draw_attack_bow_recovery),
         "parry": (2, draw_parry),
         "skill": (4, draw_skill),
         "hurt": (2, draw_hurt),
