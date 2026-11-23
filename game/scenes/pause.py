@@ -101,7 +101,7 @@ class PauseScene(Scene):
             surface,
             theme.fonts().tiny,
             self._t("ui.pause.hint", "Esc 继续"),
-            (WIDTH // 2, panel.bottom - 15),
+            (WIDTH // 2, panel.bottom - 17),
             theme.TEXT_FAINT,
             anchor="midtop",
         )

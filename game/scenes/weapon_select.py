@@ -65,17 +65,17 @@ class WeaponSelectScene(Scene):
                 self.on_confirm(WEAPON_ORDER[self.index])
             elif event.key == pygame.K_ESCAPE:
                 self.on_cancel()
-        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            scale = self.game._scale
-            ox = (self.game.window.get_width() - WIDTH * scale) // 2
-            oy = (self.game.window.get_height() - HEIGHT * scale) // 2
-            pos = ((event.pos[0] - ox) // scale, (event.pos[1] - oy) // scale)
+        elif event.type == pygame.MOUSEMOTION:
             for i, rect in enumerate(self.card_rects):
-                if rect.collidepoint(pos):
-                    if i == self.index:
-                        self.on_confirm(WEAPON_ORDER[i])
-                    else:
-                        self.index = i
+                if rect.collidepoint(event.pos):
+                    self.index = i
+                    break
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for i, rect in enumerate(self.card_rects):
+                if rect.collidepoint(event.pos):
+                    self.index = i
+                    self.on_confirm(WEAPON_ORDER[i])
+                    break
 
     def update(self, dt: float) -> None:
         self.embers.update(dt)
@@ -162,7 +162,7 @@ class WeaponSelectScene(Scene):
             surface,
             theme.fonts().tiny,
             desc,
-            (rect.centerx, rect.bottom - 24),
+            (rect.centerx, rect.bottom - 32),
             theme.TEXT_FAINT,
             anchor="midtop",
         )
@@ -170,8 +170,8 @@ class WeaponSelectScene(Scene):
             theme.draw_text(
                 surface,
                 theme.fonts().tiny,
-                self._t("ui.select.current", "当前"),
-                (rect.centerx, rect.bottom - 12),
+                self._t("ui.select.current", "点选确认"),
+                (rect.centerx, rect.bottom - 16),
                 theme.GOLD,
                 anchor="midtop",
             )

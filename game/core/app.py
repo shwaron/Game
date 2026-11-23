@@ -39,6 +39,8 @@ class Game:
         weapon_id = weapon_id or self.last_weapon_id or "tachi"
         self.last_weapon_id = weapon_id
         self.scenes.replace(RunScene(self, weapon_id))
+        # 用鼠标点「开始」时，左键同时是攻击键；清掉本次按下，避免开局自动挥一刀。
+        self.input.end_step()
 
     def open_weapon_select(self) -> None:
         from game.scenes.weapon_select import WeaponSelectScene
@@ -51,14 +53,45 @@ class Game:
                 current_id=self.last_weapon_id,
             )
         )
+        self.input.end_step()
 
     def return_to_title(self) -> None:
         from game.scenes.title import TitleScene
 
         self.scenes.replace(TitleScene(self))
+        self.input.end_step()
 
     def quit(self) -> None:
         self.running = False
+
+    # -- 输入坐标 -------------------------------------------------------
+    def internal_pos(self, pos) -> tuple[int, int]:
+        """窗口坐标 → 480x270 内部坐标，供菜单与按钮命中判定。"""
+        scaled_w = config.INTERNAL_WIDTH * self._scale
+        scaled_h = config.INTERNAL_HEIGHT * self._scale
+        ox = (config.WINDOW_WIDTH - scaled_w) // 2
+        oy = (config.WINDOW_HEIGHT - scaled_h) // 2
+        return (
+            int((pos[0] - ox) // self._scale),
+            int((pos[1] - oy) // self._scale),
+        )
+
+    def internal_event(self, event):
+        """把鼠标事件换算到内部坐标；其余事件原样返回。"""
+        if event.type not in (
+            pygame.MOUSEMOTION,
+            pygame.MOUSEBUTTONDOWN,
+            pygame.MOUSEBUTTONUP,
+        ):
+            return event
+        data = dict(event.dict)
+        data["pos"] = self.internal_pos(event.pos)
+        if "rel" in data:
+            data["rel"] = (
+                data["rel"][0] // self._scale,
+                data["rel"][1] // self._scale,
+            )
+        return pygame.event.Event(event.type, data)
 
     def run(self) -> None:
         while self.running:
@@ -69,7 +102,7 @@ class Game:
                 if event.type == pygame.QUIT:
                     self.running = False
                 else:
-                    self.scenes.current.handle_event(event)
+                    self.scenes.current.handle_event(self.internal_event(event))
             self._accumulator += frame_dt
             while self._accumulator >= config.DT:
                 self.scenes.current.update(config.DT)

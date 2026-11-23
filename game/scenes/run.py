@@ -212,6 +212,9 @@ class RunScene(Scene):
         )
 
     def handle_event(self, event) -> None:
+        if self.show_map and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self.show_map = False
+            return
         if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
             if self.player.health.alive:
                 self._start_run()
