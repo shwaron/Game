@@ -41,21 +41,14 @@ HINT_TIME = 14.0
 
 
 class RunScene(Scene):
-    def __init__(self, game) -> None:
+    def __init__(self, game, weapon_id: str = "tachi") -> None:
         self.game = game
         self.loc = load_json("game/data/localization/zh_CN.json")
         self.rooms = build_world()
-        weapon_data = load_json("game/data/weapons.json")["weapons"]
-        self.weapon_slots = [
-            self._make_weapon(weapon_data["worn_flame_blade"], "worn_flame_blade", 2),
-            self._make_weapon(weapon_data["desperate_edge"], "desperate_edge", 1),
-            self._make_weapon(weapon_data["bell_hammer"], "bell_hammer", 1),
-            self._make_weapon(weapon_data["rift_spear"], "rift_spear", 1),
-            self._make_weapon(weapon_data["gale_daggers"], "gale_daggers", 1),
-            self._make_weapon(weapon_data["ember_staff"], "ember_staff", 1),
-        ]
-        self.weapon_index = 0
-        self.weapon = self.weapon_slots[0]
+        self.weapon_data = load_json("game/data/weapons.json")["weapons"]
+        self.weapon = self._make_weapon(
+            self.weapon_data[weapon_id], weapon_id, 1
+        )
         self.skills = load_json("game/data/skills.json")["skills"]
         self.skill_cooldowns = {skill_id: 0.0 for skill_id in self.skills}
         self.cast_id = 0
@@ -115,8 +108,6 @@ class RunScene(Scene):
 
     # -- run / room lifecycle -------------------------------------------
     def _start_run(self) -> None:
-        self.weapon_index = 0
-        self.weapon = self.weapon_slots[0]
         self.player = Player(0, 0, self.weapon, self.player_anims)
         self.enemies = []
         self.room_enemies = {}
@@ -222,7 +213,10 @@ class RunScene(Scene):
 
     def handle_event(self, event) -> None:
         if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-            self._start_run()
+            if self.player.health.alive:
+                self._start_run()
+            else:
+                self.game.open_weapon_select()
 
     # -- update ---------------------------------------------------------
     def update(self, dt: float) -> None:
@@ -271,10 +265,6 @@ class RunScene(Scene):
             dt, self.player.rect, self.room.width, HEIGHT, self.player.facing
         )
 
-        if inp.is_action_just_pressed("swap") and self.player.attack_phase is None:
-            self.weapon_index = (self.weapon_index + 1) % len(self.weapon_slots)
-            self.weapon = self.weapon_slots[self.weapon_index]
-            self.player.weapon = self.weapon
         self._update_hazards()
         self._update_skills(inp, dt)
         for fx in self.skill_fx:
@@ -294,6 +284,10 @@ class RunScene(Scene):
             )
             if hits:
                 self.hitstop = config.HITSTOP_ON_HIT
+
+        if self.player.pending_shot:
+            self._spawn_player_arrow()
+            self.player.pending_shot = False
 
         for enemy in list(self.enemies):
             enemy.update(dt, self.player)
@@ -357,7 +351,7 @@ class RunScene(Scene):
                     self.hitstop = 0.08
                     continue
             hits = self.combat.resolve_melee(
-                f"projectile:{id(projectile)}",
+                f"projectile:{projectile.uid}",
                 projectile.rect,
                 projectile.team,
                 projectile.damage,
@@ -461,6 +455,25 @@ class RunScene(Scene):
                 TEAM_ENEMY,
                 size,
                 spec.get("life", 3.0),
+            )
+        )
+
+    def _spawn_player_arrow(self) -> None:
+        spec = self.player.weapon.get("projectile") or {}
+        r = self.player.rect
+        w, h = spec.get("size", [10, 3])
+        x = r.right if self.player.facing > 0 else r.left - w
+        self.projectiles.append(
+            Projectile(
+                x,
+                r.centery - h // 2,
+                self.player.facing * spec.get("speed", 400.0),
+                0.0,
+                int(round(self.player.attack_power)),
+                TEAM_PLAYER,
+                (w, h),
+                spec.get("life", 0.6),
+                spec.get("gravity", 0.0),
             )
         )
 
@@ -766,8 +779,8 @@ class RunScene(Scene):
             ],
             "weapon": {
                 "name": self.loc.get(name_key, weapon.get("id", "?")),
-                "slot": self.weapon_index + 1,
-                "slots": len(self.weapon_slots),
+                "slot": 1,
+                "slots": 1,
                 "level": weapon_level(weapon),
                 "damage_text": f"{weapon_damage(weapon, p):.1f}",
                 "bonus": scaling_bonus(weapon, p),
@@ -775,12 +788,12 @@ class RunScene(Scene):
             "bestiary": self._bestiary_text(),
             "hints": [
                 self.loc.get(
-                    "ui.hud.hint1",
+                    "ui.hud.hint1_bow" if weapon.get("projectile") else "ui.hud.hint1",
                     "A/D 移动  空格 跳  Shift 冲刺  J 攻击  K 弹反",
                 ),
                 self.loc.get(
                     "ui.hud.hint2",
-                    "Q 换武器  U 烬爆  M 舆图  R 重来  ESC 暂停",
+                    "U 烬爆  E 进门  M 舆图  R 重来  ESC 暂停",
                 ),
             ],
             "hint_alpha": (

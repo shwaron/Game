@@ -109,8 +109,12 @@ class HudRenderer:
         weapon = state.get("weapon") or {}
         if not weapon:
             return
+        if weapon.get("slots", 1) > 1:
+            prefix = f"{weapon.get('slot', 1)}/{weapon.get('slots', 1)} "
+        else:
+            prefix = ""
         line = (
-            f"{weapon.get('slot', 1)}/{weapon.get('slots', 1)} "
+            f"{prefix}"
             f"{weapon.get('name', '?')} "
             f"{self._t('ui.hud.level', '等级')}{weapon.get('level', 1)} "
             f"{self._t('ui.hud.damage', '伤害')} {weapon.get('damage_text', '0.0')}"

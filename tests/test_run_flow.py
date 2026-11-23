@@ -3,6 +3,7 @@ import os
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
+import pygame
 import pytest
 
 from game.core.app import Game
@@ -119,3 +120,61 @@ def test_no_exit_when_standing_away(run):
 
     assert run.focus_exit is None
     assert run._try_use_exit(FakeInput(["interact"])) is False
+
+
+def test_r_after_death_opens_weapon_select(run):
+    from game.scenes.weapon_select import WeaponSelectScene
+
+    run.player.health.take_damage(999)
+    run.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_r))
+
+    assert isinstance(run.game.scenes.current, WeaponSelectScene)
+
+
+def test_r_while_alive_quick_restarts(run):
+    run._enter_room("bamboo_path", "start")
+    run.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_r))
+
+    assert run.game.scenes.current is run
+    assert run.room.room_id == "shrine"
+
+
+def test_consecutive_arrows_each_hit(run):
+    from game.systems.combat import TEAM_PLAYER
+
+    run._enter_room("bamboo_path", "start")
+    enemy = run.enemies[0]
+    hp = enemy.health.hp
+    uids = set()
+    for _ in range(3):
+        run.player.attack_power = 1.0
+        run._spawn_player_arrow()
+        arrow = run.projectiles.pop()
+        uids.add(arrow.uid)
+        hits = run.combat.resolve_melee(
+            f"projectile:{arrow.uid}", enemy.rect, TEAM_PLAYER, arrow.damage
+        )
+        assert hits
+        del arrow
+    assert len(uids) == 3
+    assert enemy.health.hp == hp - 3
+
+
+def test_bow_shot_spawns_player_projectile(run):
+    from game.systems.combat import TEAM_PLAYER
+
+    run.weapon = run._make_weapon(run.weapon_data["bow"], "bow", 1)
+    run.player.weapon = run.weapon
+    run._enter_room("bamboo_path", "start")
+    run.player.facing = 1
+    run.player.attack_power = 9.0
+    run.player.pending_shot = True
+
+    run._spawn_player_arrow()
+
+    assert run.projectiles
+    arrow = run.projectiles[-1]
+    assert arrow.team == TEAM_PLAYER
+    assert arrow.damage == 9
+    assert arrow.vel_x > 0
+    assert arrow.rect.left >= run.player.rect.right

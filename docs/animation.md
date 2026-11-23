@@ -1,6 +1,6 @@
 # 《余烬回环》像素动画与动作引擎设计
 
-> 版本：v0.5
+> 版本：v0.7
 > 更新日期：2026-11-18
 > v0.5 调整：敌人示例改为武侠客栈妖物（`wine_imp` / `paper_runner`）
 > 相关文档：[接口与数据契约](interfaces.md) · [机制](mechanics.md) · [场景与素材规范](scenes.md)
@@ -28,7 +28,7 @@
 | 受创 | `hurt` | `hurt_timer > 0` | 否 | 受击闪白 |
 | 受创 | `death` | 生命 ≤ 0 | 否 | 倒地，停在末帧 |
 
-攻击动作按武器类别细分：`<class>` ∈ `sword / dagger / hammer / spear / staff`，共 15 个片段；玩家 `weapon["class"]` 决定播放哪一套（缺省或未识别类别回退 `sword`）。各片段帧率与对应武器的 `windup_ms / active_ms / recovery_ms` 对齐，保证观感与判定节奏一致。
+攻击动作按武器类别细分：`<class>` ∈ `tachi / longsword / zhanmadao`，共 9 个片段；玩家 `weapon["class"]` 决定播放哪一套（缺省或未识别类别回退 `longsword`）。各片段帧率与对应武器的 `windup_ms / active_ms / recovery_ms` 对齐，保证观感与判定节奏一致。
 
 ### 1.2 敌人动作
 
@@ -52,7 +52,7 @@
 {
   "schema_version": 1,
   "player": {
-    "origin": [17, 2],
+    "origin": [23, 2],
     "clips": {
       "idle": {"sheet": "sprites/player/idle.png", "frames": 4, "fps": 6, "loop": true},
       "attack_sword_active": {
@@ -82,11 +82,11 @@
 
 | 角色 | 目录 | 帧尺寸 |
 | --- | --- | --- |
-| 玩家 | `assets/sprites/player/<action>.png` | 52×40 |
+| 玩家 | `assets/sprites/player/<action>.png` | 64×40 |
 | 敌人 | `assets/sprites/enemies/<enemy_id>/<action>.png` | 24×36 |
 
 - 占位素材由 `tools/gen_placeholder_sprites.py` 生成：以关节坐标驱动，绘制武侠风黑衣剑客（长发髻、银肩饰、腰带饰、长袍下摆），武器按类别分别绘制（剑含银护手与余烬流苏、枪尖、铁锤、法杖余烬珠），腰后挂鞘。姿态可附 `hair=(dx,dy)` 与 `skirt=dx` 元数据，驱动发辫与袍摆的次级摆动。
-- 玩家帧加宽到 52×40 以容纳长剑与挥击轨迹；美术以帧中心为轴排布，`origin` 相应取 `[17, 2]`，使左右朝向翻转时身体、武器与碰撞框保持对齐。
+- 玩家帧加宽到 64×40 以容纳斩马刀长刀身与挥击轨迹；美术以帧中心为轴排布，`origin` 相应取 `[23, 2]`，使左右朝向翻转时身体、武器与碰撞框保持对齐。
 - 正式素材替换时**保持路径与帧数不变**，帧数变化须同步 `animations.json` 并跑校验。
 - 当前占位素材预览：[动作总览 GIF](preview/player_actions.gif) · [动作帧总表 PNG](preview/player_actions.png)。
 - 朝向：素材默认朝右，绘制时按 `facing < 0` 水平翻转并缓存翻转面。
@@ -134,8 +134,8 @@ class Animator:
 
 | 动画 | 逻辑窗口来源 | 时长（默认） |
 | --- | --- | --- |
-| `attack_*` | `weapons.json` 的 `windup_ms / active_ms / recovery_ms` | 按武器类别：剑 50/80/140、匕 30/60/90、锤 130/90/300、枪 70/70/160、杖 80/90/170 ms |
-| `parry` | 弹反窗口 | 150 ms |
+| `attack_*` | `weapons.json` 的 `windup_ms / active_ms / recovery_ms` | 太刀 35/60/95、长剑 50/80/140、斩马刀 140/100/320、盾牌 40/70/110、弓箭 220/40/260 ms |
+| `parry` | 弹反窗口 | 150 ms × 武器 `parry_scale`（盾牌 ×2，弓禁用） |
 | `skill` | 施法锁 `cast_timer` | 250 ms |
 | `hurt` | 受击闪烁 | 250 ms |
 | 敌人 `windup/active/recovery` | `enemies.json` 的招式毫秒数 | 数据表 |
@@ -162,3 +162,6 @@ class Animator:
 | v0.2 | 2026-11-18 | 攻击动作按武器类别拆分 15 个片段；新增匕/锤/枪/杖占位帧，剑类资源更名 `attack_sword_*` |
 | v0.3 | 2026-11-18 | 玩家/敌人全部占位素材改为火柴人骨骼框架；攻击判定框调试绘制改为细描边 |
 | v0.4 | 2026-11-18 | 主角改为武侠风黑衣剑客像素造型：52×40 帧、origin [17,2]、发辫/袍摆次级摆动、挂鞘与分类武器绘制；敌人保留火柴人骨骼占位 |
+| v0.5 | 2026-11-24 | 攻击动画随武器重构改为 tachi/longsword/zhanmadao 三类 9 片段；太刀弯刃快斩、长剑直刃均衡、斩马刀长柄重斩（红缨），回退类别改为 longsword |
+| v0.6 | 2026-11-24 | 三武器攻击距离加长；玩家帧加宽 64×40、origin [23,2]，斩马刀刀身与挥击轨迹加长 |
+| v0.7 | 2026-11-24 | 新增盾牌盾击与弓箭拉弓/放箭/收弓 6 个攻击片段，帧率对齐各自毫秒窗口 |

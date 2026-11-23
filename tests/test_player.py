@@ -14,21 +14,21 @@ ANIM_NAMES = [
     "jump",
     "fall",
     "dash",
-    "attack_sword_windup",
-    "attack_sword_active",
-    "attack_sword_recovery",
-    "attack_dagger_windup",
-    "attack_dagger_active",
-    "attack_dagger_recovery",
-    "attack_hammer_windup",
-    "attack_hammer_active",
-    "attack_hammer_recovery",
-    "attack_spear_windup",
-    "attack_spear_active",
-    "attack_spear_recovery",
-    "attack_staff_windup",
-    "attack_staff_active",
-    "attack_staff_recovery",
+    "attack_tachi_windup",
+    "attack_tachi_active",
+    "attack_tachi_recovery",
+    "attack_longsword_windup",
+    "attack_longsword_active",
+    "attack_longsword_recovery",
+    "attack_zhanmadao_windup",
+    "attack_zhanmadao_active",
+    "attack_zhanmadao_recovery",
+    "attack_shield_windup",
+    "attack_shield_active",
+    "attack_shield_recovery",
+    "attack_bow_windup",
+    "attack_bow_active",
+    "attack_bow_recovery",
     "parry",
     "skill",
     "hurt",
@@ -163,6 +163,73 @@ def test_parry_window_and_cooldown():
     assert not player.is_parrying
 
 
+def test_shield_doubles_parry_window():
+    from game.core.assets import load_json
+    from game.entities.player import PARRY_WINDOW
+
+    data = load_json("game/data/weapons.json")["weapons"]
+    player = Player(100, 208, weapon=dict(data["shield"]))
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    inp.press("offhand")
+    step(player, inp, room)
+    assert player.is_parrying
+    assert player.parry_timer > PARRY_WINDOW
+    step(player, inp, room, 10)
+    assert player.is_parrying
+    step(player, inp, room, 10)
+    assert not player.is_parrying
+
+
+def test_bow_cannot_parry():
+    from game.core.assets import load_json
+
+    data = load_json("game/data/weapons.json")["weapons"]
+    player = Player(100, 208, weapon=dict(data["bow"]))
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    inp.press("offhand")
+    step(player, inp, room)
+    assert not player.is_parrying
+    assert player.parry_cooldown == 0
+    assert player.stamina.value == config.STAMINA_MAX
+
+
+def test_bow_attack_queues_shot_without_melee_hitbox():
+    from game.core.assets import load_json
+
+    data = load_json("game/data/weapons.json")["weapons"]
+    player = Player(100, 208, weapon=dict(data["bow"]))
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    inp.press("attack")
+    step(player, inp, room)
+    assert player.attack_phase == "windup"
+    assert not player.pending_shot
+    step(player, inp, room, 14)
+    assert player.attack_phase == "active"
+    assert player.pending_shot
+    assert player.attack_hitbox is None
+
+
+def test_shield_counter_keeps_full_damage():
+    from game.core.assets import load_json
+
+    data = load_json("game/data/weapons.json")["weapons"]
+    player = Player(100, 208, weapon=dict(data["shield"]))
+    inp = FakeInput()
+    room = make_room()
+    step(player, inp, room, 2)
+    player.parry_success()
+    inp.press("attack")
+    step(player, inp, room)
+    assert abs(player.attack_power - 12.0) < 1e-6
+    assert player.counter_timer == 0
+
+
 def test_parry_counter_buffs_next_attack():
     player = Player(100, 208)
     inp = FakeInput()
@@ -277,12 +344,12 @@ def test_animation_follows_attack_phases_and_death():
     step(player, inp, room, 2)
     inp.press("attack")
     step(player, inp, room)
-    assert player.anim.current == "attack_sword_windup"
+    assert player.anim.current == "attack_longsword_windup"
     for _ in range(10):
         step(player, inp, room)
         if player.attack_phase == "active":
             break
-    assert player.anim.current == "attack_sword_active"
+    assert player.anim.current == "attack_longsword_active"
     player.health.take_damage(999)
     step(player, inp, room)
     assert player.anim.current == "death"
@@ -298,12 +365,12 @@ def test_attack_animation_uses_weapon_class():
         "base_damage": 5,
     }
     expected = {
-        "sword": "attack_sword_windup",
-        "dagger": "attack_dagger_windup",
-        "hammer": "attack_hammer_windup",
-        "spear": "attack_spear_windup",
-        "staff": "attack_staff_windup",
-        None: "attack_sword_windup",
+        "tachi": "attack_tachi_windup",
+        "longsword": "attack_longsword_windup",
+        "zhanmadao": "attack_zhanmadao_windup",
+        "shield": "attack_shield_windup",
+        "bow": "attack_bow_windup",
+        None: "attack_longsword_windup",
     }
     for weapon_class, clip in expected.items():
         weapon = dict(base)

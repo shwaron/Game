@@ -92,6 +92,46 @@ def test_stamina_and_mana_scaling_add_up():
     assert weapon_damage(weapon, stats) == pytest.approx(10 * 1.175)
 
 
+def test_wuxia_trio_keeps_design_tradeoffs():
+    import json
+    from pathlib import Path
+
+    data = json.loads(
+        Path(__file__).resolve().parent.parent.joinpath("game/data/weapons.json").read_text(encoding="utf-8")
+    )["weapons"]
+    tachi, longsword, zhanmadao = (data[k] for k in ("tachi", "longsword", "zhanmadao"))
+    assert tachi["hitbox"][0] < longsword["hitbox"][0] < zhanmadao["hitbox"][0]
+    assert tachi["base_damage"] < longsword["base_damage"] < zhanmadao["base_damage"]
+    cycle = lambda w: w["windup_ms"] + w["active_ms"] + w["recovery_ms"]
+    assert cycle(tachi) < cycle(longsword) < cycle(zhanmadao)
+
+
+def test_shield_and_bow_special_rules():
+    import json
+    from pathlib import Path
+
+    data = json.loads(
+        Path(__file__).resolve().parent.parent.joinpath("game/data/weapons.json").read_text(encoding="utf-8")
+    )["weapons"]
+    shield, bow = data["shield"], data["bow"]
+    assert shield["parry_scale"] == 2.0
+    assert "projectile" not in shield
+    assert shield["base_damage"] == 4
+    assert shield["base_damage"] * shield["counter_multiplier"] == pytest.approx(
+        8 * 1.5
+    )
+    assert bow["parry_scale"] == 0.0
+    assert bow["projectile"]["speed"] > 0
+    assert bow["projectile"]["life"] > 0
+    from game import config
+
+    assert bow["projectile"]["speed"] * bow["projectile"]["life"] == pytest.approx(
+        config.INTERNAL_WIDTH / 2
+    )
+    for key in ("tachi", "longsword", "zhanmadao"):
+        assert data[key].get("parry_scale", 1.0) == 1.0
+
+
 def test_player_attack_uses_weapon_damage():
     weapon = {
         "base_damage": 10,

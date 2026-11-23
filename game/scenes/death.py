@@ -33,7 +33,7 @@ class DeathScene(Scene):
         self.time = 0.0
         self.menu = Menu(
             [
-                MenuItem(self._t("ui.death.retry", "再入回环"), self.game.start_run),
+                MenuItem(self._t("ui.death.retry", "再入回环"), self.game.open_weapon_select),
                 MenuItem(self._t("ui.death.to_title", "返回标题"), self.game.return_to_title),
             ]
         )
