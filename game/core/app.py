@@ -1,6 +1,7 @@
 import pygame
 
 from game import config
+from game.core import hd
 from game.core.event_bus import EventBus
 from game.core.input import InputManager
 from game.core.scene_manager import SceneManager
@@ -15,7 +16,7 @@ class Game:
         self.window = pygame.display.set_mode(
             (config.WINDOW_WIDTH, config.WINDOW_HEIGHT)
         )
-        self.screen = pygame.Surface(
+        self.screen = hd.Surface(
             (config.INTERNAL_WIDTH, config.INTERNAL_HEIGHT)
         )
         self.clock = pygame.time.Clock()
@@ -123,13 +124,15 @@ class Game:
 
     def _draw(self) -> None:
         self.scenes.current.draw(self.screen)
-        scaled = pygame.transform.scale(
-            self.screen,
-            (
-                config.INTERNAL_WIDTH * self._scale,
-                config.INTERNAL_HEIGHT * self._scale,
-            ),
+        source = self.screen.target
+        size = (
+            config.INTERNAL_WIDTH * self._scale,
+            config.INTERNAL_HEIGHT * self._scale,
         )
+        if size[0] % source.get_width() == 0 and size[1] % source.get_height() == 0:
+            scaled = pygame.transform.scale(source, size)
+        else:
+            scaled = pygame.transform.smoothscale(source, size)
         self.window.fill((0, 0, 0))
         width, height = self.window.get_size()
         self.window.blit(

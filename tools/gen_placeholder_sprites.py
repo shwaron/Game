@@ -8,6 +8,7 @@ generated files with real art using the same paths/frame counts.
 
 import math
 import os
+import sys
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -16,7 +17,12 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from game.core import hd  # noqa: E402
+
 OUT = ROOT / "assets" / "sprites"
+SPRITE_SCALE = 2
 
 PLAYER_CELL = (64, 40)
 PLAYER_ART_DX = 16
@@ -65,12 +71,14 @@ def dot(surface, color, p, radius=1):
 
 
 def save_strip(rel: str, cell: tuple[int, int], frames: int, painter) -> None:
-    surface = pygame.Surface((cell[0] * frames, cell[1]), pygame.SRCALPHA)
+    surface = hd.Surface(
+        (cell[0] * frames, cell[1]), pygame.SRCALPHA, SPRITE_SCALE
+    )
     for index in range(frames):
         painter(surface, index, index * cell[0])
     path = OUT / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    pygame.image.save(surface, str(path))
+    pygame.image.save(surface.target, str(path))
     print(f"wrote {path.relative_to(ROOT)}")
 
 
@@ -126,10 +134,14 @@ def draw_player_character(
     skirt_dx = pose.get("skirt", 0.0)
 
     if dim:
-        layer = pygame.Surface(PLAYER_CELL, pygame.SRCALPHA)
+        scale = getattr(surface, "scale", 1)
+        layer = hd.Surface(PLAYER_CELL, pygame.SRCALPHA, scale)
         draw_player_character(layer, 0, pose)
         layer.set_alpha(alpha)
-        surface.blit(layer, (ox, 0))
+        if scale > 1:
+            surface.blit_native(layer.target, (ox * scale, 0))
+        else:
+            surface.blit(layer.target, (ox, 0))
         return
 
     if ghost or flash:

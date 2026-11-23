@@ -3,6 +3,7 @@ import random
 import pygame
 
 from game import config
+from game.core import hd
 from game.core.animation import build_clips
 from game.core.assets import load_json
 from game.core.camera import Camera
@@ -63,7 +64,7 @@ class RunScene(Scene):
         self.rng = random.Random()
         self.camera = Camera(WIDTH, HEIGHT)
         self.room = self.rooms[START_ROOM]
-        self.world_surface = pygame.Surface((self.room.width, HEIGHT))
+        self.world_surface = hd.Surface((self.room.width, HEIGHT))
         self.combat = CombatSystem(self.rng)
         self.player = None
         self.enemies: list = []
@@ -172,7 +173,7 @@ class RunScene(Scene):
             pickup = Pickup(item_id, x, y)
             self.pickups.append(pickup)
             self._loot_sources[id(pickup)] = source
-        self.world_surface = pygame.Surface((room.width, HEIGHT))
+        self.world_surface = hd.Surface((room.width, HEIGHT))
         self.camera.snap(self.player.rect, room.width, HEIGHT)
         self.room_title_timer = ROOM_TITLE_TIME
         self.clear_banner_timer = 0.0
@@ -675,24 +676,24 @@ class RunScene(Scene):
             usable = focused and self.exit_cooldown <= 0
             if usable:
                 label = f"{self.loc.get('ui.exit.enter', 'E')} · {label}"
-            text = self.font_tiny.render(
-                label, True, (246, 216, 158) if usable else (232, 214, 174)
-            )
-            plate = pygame.Surface(
-                (text.get_width() + 8, text.get_height() + 4), pygame.SRCALPHA
-            )
+            color = (246, 216, 158) if usable else (232, 214, 174)
+            scale = getattr(surface, "scale", 1)
+            tw, th = theme.text_size(surface, self.font_tiny, label)
+            plate = hd.Surface((tw + 8, th + 4), pygame.SRCALPHA, scale)
             plate.fill((8, 7, 6, 170))
-            lx = max(6, min(WIDTH - text.get_width() - 14, sx - text.get_width() // 2))
-            ly = max(18, min(HEIGHT - 26, sy - text.get_height() - 12))
-            surface.blit(plate, (lx - 4, ly - 2))
+            lx = max(6, min(WIDTH - tw - 14, sx - tw // 2))
+            ly = max(18, min(HEIGHT - 26, sy - th - 12))
+            surface.blit_native(
+                plate.target, ((lx - 4) * scale, (ly - 2) * scale)
+            )
             if usable:
                 pygame.draw.rect(
                     surface,
                     (196, 158, 88),
-                    (lx - 4, ly - 2, plate.get_width(), plate.get_height()),
+                    (lx - 4, ly - 2, tw + 8, th + 4),
                     1,
                 )
-            surface.blit(text, (lx, ly))
+            theme.draw_text(surface, self.font_tiny, label, (lx, ly), color)
 
     def _draw_hazards(self, surface: pygame.Surface) -> None:
         for hazard in self.room.hazards:
@@ -731,15 +732,20 @@ class RunScene(Scene):
                 continue
             key = enemy.data.get("name_key", f"enemy.{enemy.enemy_id}.name")
             name = self.loc.get(key, enemy.enemy_id)
-            label = self.font_tiny.render(name, True, (232, 214, 174))
-            shadow = self.font_tiny.render(name, True, (14, 12, 10))
+            tw, th = theme.text_size(surface, self.font_tiny, name)
             r = enemy.rect
-            x = r.centerx - label.get_width() // 2 - round(cam_x)
+            x = r.centerx - tw // 2 - round(cam_x)
             y = r.y - 20 - round(cam_y)
-            if x < -label.get_width() or x > WIDTH:
+            if x < -tw or x > WIDTH:
                 continue
-            surface.blit(shadow, (x + 1, y + 1))
-            surface.blit(label, (x, y))
+            theme.draw_text(
+                surface,
+                self.font_tiny,
+                name,
+                (x, y),
+                (232, 214, 174),
+                shadow=(14, 12, 10),
+            )
 
     def _bestiary_text(self) -> str:
         if self.room.room_id in self.cleared:
@@ -820,47 +826,63 @@ class RunScene(Scene):
         title = self.loc.get(self.room.title_key, self.room.room_id)
         subtitle = self.loc.get(self.room.subtitle_key, "")
         text = f"{title} · {subtitle}" if subtitle else title
-        label = self.font_info.render(text, True, (238, 214, 160))
-        plate = pygame.Surface((label.get_width() + 16, 15), pygame.SRCALPHA)
+        scale = getattr(surface, "scale", 1)
+        tw, th = theme.text_size(surface, self.font_info, text)
+        plate = hd.Surface((tw + 16, 15), pygame.SRCALPHA, scale)
         plate.fill((8, 7, 6, 160))
-        pygame.draw.line(plate, (150, 116, 68), (4, 0), (plate.get_width() - 4, 0), 1)
-        plate.blit(label, (8, 0))
+        pygame.draw.line(plate, (150, 116, 68), (4, 0), (tw + 12, 0), 1)
+        theme.draw_text(plate, self.font_info, text, (8, 1), (238, 214, 160))
         plate.set_alpha(alpha)
-        surface.blit(plate, ((WIDTH - plate.get_width()) // 2, 100))
+        surface.blit_native(
+            plate.target, ((WIDTH - tw - 16) // 2 * scale, 100 * scale)
+        )
 
     def _draw_clear_banner(self, surface: pygame.Surface) -> None:
         if self.clear_banner_timer <= 0 or self.show_map:
             return
         alpha = min(255, int(255 * self.clear_banner_timer / 0.6))
         title = self.loc.get("ui.hud.room_cleared", "此处已清")
-        label = self.font_title.render(title, True, (238, 214, 160))
-        width = label.get_width() + 32
-        card = pygame.Surface((width, 22), pygame.SRCALPHA)
+        scale = getattr(surface, "scale", 1)
+        tw, th = theme.text_size(surface, self.font_title, title)
+        width = tw + 32
+        card = hd.Surface((width, 22), pygame.SRCALPHA, scale)
         card.fill((8, 7, 6, 170))
         pygame.draw.rect(card, (150, 116, 68), card.get_rect(), 1)
-        card.blit(label, ((width - label.get_width()) // 2, 2))
+        theme.draw_text(card, self.font_title, title, (width // 2, 3), (238, 214, 160), anchor="midtop")
         card.set_alpha(alpha)
-        surface.blit(card, ((WIDTH - width) // 2, 124))
+        surface.blit_native(
+            card.target, ((WIDTH - width) // 2 * scale, 124 * scale)
+        )
 
     def _map_center(self, pos: tuple[int, int]) -> tuple[int, int]:
         gx, gy = pos
         return 86 + gx * 58, 132 + gy * 44
 
     def _draw_minimap(self, surface: pygame.Surface) -> None:
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        overlay.fill((5, 5, 4, 210))
-        surface.blit(overlay, (0, 0))
+        theme.draw_plate(surface, pygame.Rect(0, 0, WIDTH, HEIGHT), (5, 5, 4), 210)
         panel = pygame.Rect(24, 22, WIDTH - 48, HEIGHT - 44)
         pygame.draw.rect(surface, (10, 9, 8), panel)
         pygame.draw.rect(surface, (150, 116, 68), panel, 1)
         title = self.loc.get("ui.map.title", "青篁岭 · 竹坞舆图")
-        title_surf = self.font_title.render(title, True, (238, 214, 160))
-        surface.blit(title_surf, (WIDTH // 2 - title_surf.get_width() // 2, 30))
+        theme.draw_text(
+            surface,
+            self.font_title,
+            title,
+            (WIDTH // 2, 30),
+            (238, 214, 160),
+            anchor="midtop",
+        )
         subtitle = self.loc.get("ui.map.subtitle", "已探索 {n}/{total}").format(
             n=len(self.discovered), total=len(self.rooms)
         )
-        sub_surf = self.font_info.render(subtitle, True, (166, 158, 138))
-        surface.blit(sub_surf, (WIDTH // 2 - sub_surf.get_width() // 2, 48))
+        theme.draw_text(
+            surface,
+            self.font_info,
+            subtitle,
+            (WIDTH // 2, 48),
+            (166, 158, 138),
+            anchor="midtop",
+        )
 
         shown: set[str] = set()
         for room_id, room in self.rooms.items():
@@ -910,30 +932,49 @@ class RunScene(Scene):
             pygame.draw.rect(surface, border, (x - 7, y - 4, 14, 8), 1)
 
         current_name = self.loc.get(self.room.title_key, self.room.room_id)
-        label = self.font_info.render(current_name, True, HUD_GOLD)
-        surface.blit(label, (WIDTH // 2 - label.get_width() // 2, 206))
+        theme.draw_text(
+            surface,
+            self.font_info,
+            current_name,
+            (WIDTH // 2, 206),
+            HUD_GOLD,
+            anchor="midtop",
+        )
         hint = self.loc.get("ui.map.close", "M 关闭舆图")
-        hint_surf = self.font_info.render(hint, True, (166, 158, 138))
-        surface.blit(
-            hint_surf,
-            (WIDTH // 2 - hint_surf.get_width() // 2, HEIGHT - 44),
+        theme.draw_text(
+            surface,
+            self.font_info,
+            hint,
+            (WIDTH // 2, HEIGHT - 44),
+            (166, 158, 138),
+            anchor="midtop",
         )
 
     def _draw_death(self, surface: pygame.Surface) -> None:
         alpha = min(170, int(170 * self.death_timer / 0.6))
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        overlay.fill((6, 5, 5, alpha))
-        surface.blit(overlay, (0, 0))
+        theme.draw_plate(
+            surface, pygame.Rect(0, 0, WIDTH, HEIGHT), (6, 5, 5), alpha
+        )
         if self.death_timer < 0.25:
             return
         title = self.loc.get("ui.death.title", "魂归余烬祠")
         hint = self.loc.get("ui.death.hint", "余烬未熄 · 重头再来")
-        title_surf = self.font_title.render(title, True, (238, 214, 160))
-        hint_surf = self.font_info.render(hint, True, (188, 172, 138))
-        surface.blit(
-            title_surf, (WIDTH // 2 - title_surf.get_width() // 2, 112)
+        theme.draw_text(
+            surface,
+            self.font_title,
+            title,
+            (WIDTH // 2, 112),
+            (238, 214, 160),
+            anchor="midtop",
         )
-        surface.blit(hint_surf, (WIDTH // 2 - hint_surf.get_width() // 2, 134))
+        theme.draw_text(
+            surface,
+            self.font_info,
+            hint,
+            (WIDTH // 2, 134),
+            (188, 172, 138),
+            anchor="midtop",
+        )
 
     def _draw_fade(self, surface: pygame.Surface) -> None:
         if self.transition is None:
@@ -943,7 +984,9 @@ class RunScene(Scene):
             alpha = int(255 * (1.0 - timer / TRANSITION_TIME))
         else:
             alpha = int(255 * (timer / TRANSITION_TIME))
-        fade = pygame.Surface((WIDTH, HEIGHT))
-        fade.fill((0, 0, 0))
-        fade.set_alpha(max(0, min(255, alpha)))
-        surface.blit(fade, (0, 0))
+        theme.draw_plate(
+            surface,
+            pygame.Rect(0, 0, WIDTH, HEIGHT),
+            (0, 0, 0),
+            max(0, min(255, alpha)),
+        )

@@ -7,6 +7,7 @@
 import pygame
 
 from game import config
+from game.core import hd
 from game.ui import theme
 
 HUD_MARGIN = 6
@@ -28,7 +29,11 @@ class HudRenderer:
             return 0.0
         return max(0.0, min(1.0, value / maximum))
 
+    def _plate(self, surface, rect: pygame.Rect, alpha: int) -> None:
+        theme.draw_plate(surface, rect, (8, 7, 6), alpha)
+
     def draw(self, surface: pygame.Surface, state: dict) -> None:
+        body = self.fonts.body
         rows = (
             (
                 self._t("ui.hud.hp", "气血"),
@@ -50,14 +55,9 @@ class HudRenderer:
             ),
         )
 
-        rendered = []
         max_right = 112
-        for i, (label, value_text, ratio, color) in enumerate(rows):
-            y = 8 + i * 12
-            label_surf = self.fonts.body.render(label, True, (222, 208, 180))
-            value_surf = self.fonts.body.render(value_text, True, (204, 192, 166))
-            rendered.append((y, label_surf, value_surf, ratio, color))
-            max_right = max(max_right, 108 + value_surf.get_width())
+        for _, value_text, _, _ in rows:
+            max_right = max(max_right, 108 + theme.text_size(surface, body, value_text)[0])
 
         skills = state.get("skills") or []
         skill = skills[0] if skills else None
@@ -69,24 +69,29 @@ class HudRenderer:
                 seconds = self._t("ui.hud.seconds", "秒")
                 skill_state = f"{skill.get('cooldown', 0.0):.1f}{seconds}"
                 skill_color = theme.TEXT_DIM
-            skill_surf = self.fonts.body.render(
-                f"{skill.get('name', '')} {skill_state}", True, skill_color
+            skill_line = f"{skill.get('name', '')} {skill_state}"
+            max_right = max(
+                max_right, 12 + theme.text_size(surface, body, skill_line)[0]
             )
-            max_right = max(max_right, 12 + skill_surf.get_width())
         else:
-            skill_surf = None
+            skill_line = None
+            skill_color = theme.TEXT_DIM
 
-        bestiary_surf = self.fonts.body.render(
-            state.get("bestiary", ""), True, theme.GOLD
+        bestiary = state.get("bestiary", "")
+        max_right = max(max_right, 12 + theme.text_size(surface, body, bestiary)[0])
+
+        panel_height = 74
+        self._plate(
+            surface,
+            pygame.Rect(HUD_MARGIN, 4, max_right - 2, panel_height),
+            178,
         )
-        max_right = max(max_right, 12 + bestiary_surf.get_width())
 
-        panel = pygame.Surface((max_right - 2, 74), pygame.SRCALPHA)
-        panel.fill((8, 7, 6, 178))
-        surface.blit(panel, (HUD_MARGIN, 4))
-
-        for y, label_surf, value_surf, ratio, color in rendered:
-            surface.blit(label_surf, (12, y - 1))
+        for index, (label, value_text, ratio, color) in enumerate(rows):
+            y = 8 + index * 12
+            theme.draw_text(
+                surface, body, label, (12, y - 1), (222, 208, 180)
+            )
             pygame.draw.rect(
                 surface, (18, 16, 16), (38, y + 3, BAR_WIDTH, BAR_HEIGHT)
             )
@@ -96,11 +101,13 @@ class HudRenderer:
             pygame.draw.rect(
                 surface, (50, 42, 36), (38, y + 3, BAR_WIDTH, BAR_HEIGHT), 1
             )
-            surface.blit(value_surf, (108, y - 1))
+            theme.draw_text(
+                surface, body, value_text, (108, y - 1), (204, 192, 166)
+            )
 
-        if skill_surf is not None:
-            surface.blit(skill_surf, (12, 44))
-        surface.blit(bestiary_surf, (12, 58))
+        if skill_line is not None:
+            theme.draw_text(surface, body, skill_line, (12, 44), skill_color)
+        theme.draw_text(surface, body, bestiary, (12, 58), theme.GOLD)
 
         self._draw_weapon(surface, state)
         self._draw_hints(surface, state)
@@ -126,25 +133,32 @@ class HudRenderer:
             f"{self._t('ui.hud.embers', '余烬')} {state.get('embers', 0)}   "
             f"{self._t('ui.hud.kills', '击杀')} {state.get('kills', 0)}"
         )
-        weapon_surf = self.fonts.body.render(line, True, (220, 210, 184))
-        loot_surf = self.fonts.body.render(loot_line, True, (166, 158, 138))
-        plate = pygame.Surface(
-            (
-                max(weapon_surf.get_width(), loot_surf.get_width()) + 10,
-                weapon_surf.get_height() + loot_surf.get_height() + 8,
-            ),
-            pygame.SRCALPHA,
-        )
-        plate.fill((8, 7, 6, 178))
+        body = self.fonts.body
+        weapon_w, weapon_h = theme.text_size(surface, body, line)
+        loot_w, loot_h = theme.text_size(surface, body, loot_line)
+        plate_w = max(weapon_w, loot_w) + 10
+        plate_h = weapon_h + loot_h + 8
         right = config.INTERNAL_WIDTH - 8
-        surface.blit(plate, (right - plate.get_width(), 6))
-        surface.blit(weapon_surf, (right - weapon_surf.get_width() - 4, 7))
-        surface.blit(
-            loot_surf,
-            (
-                right - loot_surf.get_width() - 4,
-                7 + weapon_surf.get_height() + 2,
-            ),
+        self._plate(
+            surface,
+            pygame.Rect(right - plate_w, 6, plate_w, plate_h),
+            178,
+        )
+        theme.draw_text(
+            surface,
+            body,
+            line,
+            (right - 4, 7),
+            (220, 210, 184),
+            anchor="topright",
+        )
+        theme.draw_text(
+            surface,
+            body,
+            loot_line,
+            (right - 4, 7 + weapon_h + 2),
+            (166, 158, 138),
+            anchor="topright",
         )
 
     def _draw_hints(self, surface: pygame.Surface, state: dict) -> None:
@@ -152,13 +166,22 @@ class HudRenderer:
         alpha_ratio = float(state.get("hint_alpha", 0.0))
         if not hints or alpha_ratio <= 0:
             return
-        rendered = [
-            self.fonts.body.render(line, True, (206, 192, 162)) for line in hints
-        ]
-        plate_w = max(line.get_width() for line in rendered) + 8
-        plate = pygame.Surface((plate_w, 26), pygame.SRCALPHA)
+        scale = getattr(surface, "scale", 1)
+        body = self.fonts.body
+        rendered = hints[:2]
+        widths = [theme.text_size(surface, body, line)[0] for line in rendered]
+        plate_w = max(widths) + 8
+        plate = hd.Surface((plate_w, 26), pygame.SRCALPHA, scale)
         plate.fill((8, 7, 6, 168))
-        for index, line in enumerate(rendered[:2]):
-            plate.blit(line, (4, index * 11))
+        for index, line in enumerate(rendered):
+            theme.draw_text(
+                plate, body, line, (4, index * 11), (206, 192, 162)
+            )
         plate.set_alpha(int(255 * min(1.0, alpha_ratio)))
-        surface.blit(plate, (10, config.INTERNAL_HEIGHT - 30))
+        if scale > 1:
+            surface.blit_native(
+                plate.target,
+                (10 * scale, (config.INTERNAL_HEIGHT - 30) * scale),
+            )
+        else:
+            surface.blit(plate.target, (10, config.INTERNAL_HEIGHT - 30))

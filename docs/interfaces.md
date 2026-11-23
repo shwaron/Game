@@ -321,7 +321,8 @@ class Animator:
 | --- | --- | --- |
 | schema_version | number | 必填 |
 | player / enemies | object | 实体动画集合；`enemies` 键为 enemy_id |
-| origin | [dx, dy] | 帧左上角相对实体碰撞框左上角的偏移 |
+| image_scale | number | 素材相对逻辑像素的倍率；2 表示精灵按 2 倍生成（默认 1） |
+| origin | [dx, dy] | 帧左上角相对实体碰撞框左上角的偏移（逻辑坐标） |
 | clips | object | 动作 id → 片段 |
 | clips.*.sheet | string | 相对 `assets/` 的横向条带图路径 |
 | clips.*.frames | number | 帧数（图片宽度等分） |
@@ -329,7 +330,7 @@ class Animator:
 | clips.*.loop | bool | 是否循环；非循环停在末帧 |
 | clips.*.events | object[] | 帧事件 `{frame, name}`，可选 |
 
-规则见 [动画引擎设计](animation.md)；主角占位帧为武侠风黑衣剑客像素造型（52×40，`origin [17,2]`），敌人为火柴人骨骼占位，均由 `tools/gen_placeholder_sprites.py` 生成；替换正式素材须保持路径与帧数。
+规则见 [动画引擎设计](animation.md)；主角占位帧为武侠风黑衣剑客像素造型（逻辑 52×40，2 倍素材 104×80，`origin [23,2]`），敌人为火柴人骨骼占位，均由 `tools/gen_placeholder_sprites.py` 生成；替换正式素材须保持路径、帧数与 `image_scale`。
 
 ---
 

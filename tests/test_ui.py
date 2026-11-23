@@ -216,6 +216,37 @@ def test_window_uses_same_integer_scale_on_both_axes(game):
     assert game.window.get_size() == (config.WINDOW_WIDTH, config.WINDOW_HEIGHT)
 
 
+def test_hd_surface_draws_at_twice_the_pixel_density():
+    from game.core import hd
+
+    surface = hd.Surface((100, 50))
+    assert surface.get_size() == (100, 50)
+    assert surface.target.get_size() == (200, 100)
+
+    pygame.draw.rect(surface, (255, 255, 255), (10, 10, 20, 10))
+    assert surface.target.get_at((20, 20))[:3] == (255, 255, 255)
+    assert surface.target.get_at((10, 10))[:3] == (0, 0, 0)
+
+    surface.fill((0, 0, 255), (0, 0, 5, 5))
+    assert surface.target.get_at((0, 0))[:3] == (0, 0, 255)
+
+
+def test_hd_text_keeps_logical_metrics():
+    from game.core import hd
+
+    surface = hd.Surface((200, 80))
+    font = theme.fonts().body
+    logical = theme.text_size(surface, font, "余烬")
+    plain = theme.text_size(pygame.Surface((200, 80)), font, "余烬")
+    assert abs(logical[0] - plain[0]) <= 1
+    assert abs(logical[1] - plain[1]) <= 1
+    assert theme.hd_font(font, 2).get_height() > font.get_height()
+
+    rect = theme.draw_text(surface, font, "余烬", (10, 10))
+    assert rect.topleft == (10, 10)
+
+
+
 def test_title_menu_click_opens_settings(game):
     from game.scenes.settings import SettingsScene
     from game.scenes.title import TitleScene

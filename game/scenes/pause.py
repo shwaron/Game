@@ -65,9 +65,9 @@ class PauseScene(Scene):
     def draw(self, surface: pygame.Surface) -> None:
         self.under.draw(surface)
 
-        veil = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        veil.fill((5, 5, 4, 172))
-        surface.blit(veil, (0, 0))
+        theme.draw_plate(
+            surface, pygame.Rect(0, 0, WIDTH, HEIGHT), (5, 5, 4), 172
+        )
 
         panel = pygame.Rect(140, 52, 200, 176)
         theme.draw_panel(surface, panel, alpha=210)
@@ -101,7 +101,7 @@ class PauseScene(Scene):
             surface,
             theme.fonts().tiny,
             self._t("ui.pause.hint", "Esc 继续"),
-            (WIDTH // 2, panel.bottom - 17),
+            (WIDTH // 2, panel.bottom - 20),
             theme.TEXT_FAINT,
             anchor="midtop",
         )

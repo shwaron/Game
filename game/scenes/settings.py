@@ -103,9 +103,9 @@ class SettingsScene(Scene):
     # -- 绘制 -----------------------------------------------------------
     def draw(self, surface: pygame.Surface) -> None:
         self.under.draw(surface)
-        veil = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        veil.fill((5, 5, 4, 196))
-        surface.blit(veil, (0, 0))
+        theme.draw_plate(
+            surface, pygame.Rect(0, 0, WIDTH, HEIGHT), (5, 5, 4), 196
+        )
 
         panel = pygame.Rect(60, 18, 360, 232)
         theme.draw_panel(surface, panel, alpha=214)

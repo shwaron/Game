@@ -3,6 +3,7 @@
 import pygame
 
 from game import config
+from game.core import hd
 from game.core.assets import load_json
 from game.core.scene_manager import Scene
 from game.ui import theme
@@ -39,8 +40,13 @@ class WeaponSelectScene(Scene):
         )
         self.embers = EmberField(WIDTH, HEIGHT, count=30, seed=7, speed=(5.0, 16.0))
         self.fade = Fade(0.35)
-        self.backdrop = theme.vertical_gradient(
-            (WIDTH, HEIGHT), theme.NIGHT_TOP, theme.NIGHT_BOTTOM
+        self.backdrop = hd.mark_native(
+            pygame.transform.scale(
+                theme.vertical_gradient(
+                    (WIDTH, HEIGHT), theme.NIGHT_TOP, theme.NIGHT_BOTTOM
+                ),
+                (WIDTH * hd.RENDER_SCALE, HEIGHT * hd.RENDER_SCALE),
+            )
         )
         self.card_rects = [
             pygame.Rect(
@@ -82,7 +88,13 @@ class WeaponSelectScene(Scene):
         self.fade.update(dt)
 
     def draw(self, surface: pygame.Surface) -> None:
-        surface.blit(self.backdrop, (0, 0))
+        if getattr(surface, "scale", 1) > 1:
+            surface.blit_native(self.backdrop, (0, 0))
+        else:
+            surface.blit(
+                pygame.transform.smoothscale(self.backdrop, (WIDTH, HEIGHT)),
+                (0, 0),
+            )
         self.embers.draw(surface)
         theme.draw_text(
             surface,
@@ -111,9 +123,9 @@ class WeaponSelectScene(Scene):
         rect = self.card_rects[i]
         weapon = self.weapons[weapon_id]
         selected = i == self.index
-        panel = pygame.Surface(rect.size, pygame.SRCALPHA)
-        panel.fill((14, 12, 16, 210 if selected else 150))
-        surface.blit(panel, rect.topleft)
+        theme.draw_plate(
+            surface, rect, (14, 12, 16), 210 if selected else 150
+        )
         border = theme.GOLD_BRIGHT if selected else theme.GOLD_FAINT
         pygame.draw.rect(surface, border, rect, 1 if not selected else 2)
         if selected:

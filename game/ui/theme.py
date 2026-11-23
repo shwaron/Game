@@ -40,6 +40,22 @@ FONT_HEADING = 15
 FONT_BODY = 10
 FONT_TINY = 9
 
+_FONT_SIZES: dict[pygame.font.Font, int] = {}
+_HD_FONTS: dict[tuple[pygame.font.Font, int], pygame.font.Font] = {}
+_TEXT_CACHE: dict[tuple[pygame.font.Font, str, tuple], pygame.Surface] = {}
+
+
+def _render_text(font: pygame.font.Font, value: str, color) -> pygame.Surface:
+    key = (font, value, tuple(color))
+    cached = _TEXT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    if len(_TEXT_CACHE) > 512:
+        _TEXT_CACHE.clear()
+    surface = font.render(value, True, color)
+    _TEXT_CACHE[key] = surface
+    return surface
+
 
 def lerp_color(a, b, t: float):
     t = max(0.0, min(1.0, t))
@@ -57,8 +73,28 @@ def load_cjk_font(size: int) -> pygame.font.Font:
     for name in ("microsoftyahei", "simhei", "notosanssc", "simsun", "fangsong"):
         path = pygame.font.match_font(name)
         if path:
-            return pygame.font.Font(path, size)
-    return pygame.font.Font(None, size)
+            font = pygame.font.Font(path, size)
+            _FONT_SIZES[font] = size
+            return font
+    font = pygame.font.Font(None, size)
+    _FONT_SIZES[font] = size
+    return font
+
+
+def hd_font(font: pygame.font.Font, scale: int = 2) -> pygame.font.Font:
+    """同一字体的高分辨率版本；用于高清绘制层里的原生文字。"""
+    if scale <= 1:
+        return font
+    key = (font, scale)
+    cached = _HD_FONTS.get(key)
+    if cached is not None:
+        return cached
+    size = _FONT_SIZES.get(font)
+    if size is None:
+        size = max(1, round(font.get_height() / 1.33))
+    scaled = load_cjk_font(max(1, size * scale))
+    _HD_FONTS[key] = scaled
+    return scaled
 
 
 class Fonts:
@@ -91,14 +127,63 @@ def draw_text(
     anchor: str = "topleft",
     shadow=None,
 ) -> pygame.Rect:
-    """按锚点绘制文字，可选 1px 深色描影保证暗背景可读。"""
-    text = font.render(str(value), True, color)
+    """按锚点绘制文字，可选 1px 深色描影保证暗背景可读。
+
+    目标若是高分辨率绘制层，会自动换成同字号的 2 倍字体并原生贴图，
+    返回值仍换算回 480x270 逻辑坐标。
+    """
+    scale = getattr(surface, "scale", 1)
+    use_font = hd_font(font, scale) if scale > 1 else font
+    if scale > 1:
+        pos = (pos[0] * scale, pos[1] * scale)
+    text = _render_text(use_font, str(value), color)
     rect = text.get_rect(**{anchor: pos})
     if shadow is not None:
-        shade = font.render(str(value), True, shadow)
-        surface.blit(shade, rect.move(1, 1))
+        shade = _render_text(use_font, str(value), shadow)
+        if scale > 1:
+            surface.blit_native(shade, rect.move(scale, scale))
+        else:
+            surface.blit(shade, rect.move(1, 1))
+    if scale > 1:
+        surface.blit_native(text, rect)
+        return pygame.Rect(
+            rect.x // scale,
+            rect.y // scale,
+            max(1, rect.w // scale),
+            max(1, rect.h // scale),
+        )
     surface.blit(text, rect)
     return rect
+
+
+def text_size(surface, font: pygame.font.Font, value: str) -> tuple[int, int]:
+    """文字在逻辑坐标下的宽高，用于计算面板尺寸。"""
+    scale = getattr(surface, "scale", 1)
+    use_font = hd_font(font, scale) if scale > 1 else font
+    width, height = use_font.size(str(value))
+    if scale > 1:
+        return max(1, width // scale), max(1, height // scale)
+    return width, height
+
+
+def draw_plate(
+    surface: pygame.Surface,
+    rect: pygame.Rect,
+    color,
+    alpha: int = 196,
+) -> None:
+    """半透明底板；高清层上按目标分辨率生成，避免边缘被拉糊。"""
+    scale = getattr(surface, "scale", 1)
+    if scale > 1:
+        from game.core import hd
+
+        plate = hd.Surface((rect.w, rect.h), pygame.SRCALPHA, scale)
+        plate.fill((*color, alpha))
+        surface.blit_native(plate.target, (rect.x * scale, rect.y * scale))
+        return
+    plate = pygame.Surface(rect.size, pygame.SRCALPHA)
+    plate.fill((*color, alpha))
+    surface.blit(plate, rect.topleft)
 
 
 def draw_panel(
@@ -111,9 +196,7 @@ def draw_panel(
     width: int = 1,
 ) -> pygame.Rect:
     """半透明底 + 细描边，全项目菜单与结算面板统一样式。"""
-    plate = pygame.Surface(rect.size, pygame.SRCALPHA)
-    plate.fill((*fill, alpha))
-    surface.blit(plate, rect.topleft)
+    draw_plate(surface, rect, fill, alpha)
     if edge is not None:
         pygame.draw.rect(surface, edge, rect, width)
     return rect

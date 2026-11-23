@@ -116,6 +116,8 @@ class Menu:
         gap: int = 12,
     ) -> int:
         fonts = fonts or theme.fonts()
+        scale = getattr(surface, "scale", 1)
+        font = theme.hd_font(fonts.heading, scale) if scale > 1 else fonts.heading
         self.rects = []
         y = top
         for i, item in enumerate(self.items):
@@ -126,16 +128,28 @@ class Menu:
                 color = theme.TEXT_DIM
             else:
                 color = theme.TEXT_FAINT
-            label = fonts.heading.render(item.text(), True, color)
-            rect = label.get_rect(midtop=(center_x, y))
+            label = font.render(item.text(), True, color)
+            rect = label.get_rect(midtop=(center_x * scale, y * scale))
+            logical = pygame.Rect(
+                rect.x // scale,
+                rect.y // scale,
+                max(1, rect.w // scale),
+                max(1, rect.h // scale),
+            )
             if selected:
-                shadow = fonts.heading.render(item.text(), True, (12, 10, 8))
-                surface.blit(shadow, rect.move(1, 1))
-            surface.blit(label, rect)
+                shadow = font.render(item.text(), True, (12, 10, 8))
+                if scale > 1:
+                    surface.blit_native(shadow, rect.move(scale, scale))
+                else:
+                    surface.blit(shadow, rect.move(1, 1))
+            if scale > 1:
+                surface.blit_native(label, rect)
+            else:
+                surface.blit(label, rect)
             if selected:
                 shimmer = theme.pulse(self.time, 2.4)
-                marker_x = rect.left - 11
-                marker_y = rect.centery
+                marker_x = logical.left - 11
+                marker_y = logical.centery
                 pygame.draw.polygon(
                     surface,
                     theme.lerp_color(theme.GOLD_DIM, theme.GOLD_BRIGHT, shimmer),
@@ -150,12 +164,12 @@ class Menu:
                 pygame.draw.line(
                     surface,
                     underline,
-                    (rect.left + 2, rect.bottom + 2),
-                    (rect.right - 2, rect.bottom + 2),
+                    (logical.left + 2, logical.bottom + 2),
+                    (logical.right - 2, logical.bottom + 2),
                     1,
                 )
-            self.rects.append(rect.inflate(28, 6))
-            y = rect.bottom + gap
+            self.rects.append(logical.inflate(28, 6))
+            y = logical.bottom + gap
         return y - gap
 
 
@@ -234,6 +248,12 @@ class Fade:
     def draw(self, surface: pygame.Surface) -> None:
         alpha = self.alpha
         if alpha <= 0:
+            return
+        scale = getattr(surface, "scale", 1)
+        if scale > 1:
+            veil = pygame.Surface(surface.target.get_size(), pygame.SRCALPHA)
+            veil.fill((*self.color, alpha))
+            surface.blit_native(veil, (0, 0))
             return
         veil = pygame.Surface(surface.get_size())
         veil.fill(self.color)

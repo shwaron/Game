@@ -8,6 +8,7 @@ import random
 import pygame
 
 from game import config
+from game.core import hd
 from game.core.assets import load_json
 from game.core.scene_manager import Scene
 from game.ui import theme
@@ -63,17 +64,24 @@ class TitleScene(Scene):
     # -- 绘制 -----------------------------------------------------------
     def _render_title(self) -> pygame.Surface:
         fonts = theme.fonts()
+        scale = getattr(self.game.screen, "scale", 1)
+        font = theme.hd_font(fonts.title, scale) if scale > 1 else fonts.title
         text = self._t("ui.title.name", "余烬回环")
-        spacing = 7
-        widths = [fonts.title.size(ch)[0] for ch in text]
+        spacing = 7 * scale
+        widths = [font.size(ch)[0] for ch in text]
         total = sum(widths) + spacing * max(0, len(text) - 1)
-        art = pygame.Surface((total + 6, fonts.title.get_height() + 6), pygame.SRCALPHA)
-        x = 3
+        art = hd.mark_native(
+            pygame.Surface(
+                (total + 6 * scale, font.get_height() + 6 * scale),
+                pygame.SRCALPHA,
+            )
+        )
+        x = 3 * scale
         for ch, width in zip(text, widths):
-            shadow = fonts.title.render(ch, True, (28, 16, 10))
-            glyph = fonts.title.render(ch, True, theme.GOLD_BRIGHT)
-            art.blit(shadow, (x + 1, 4))
-            art.blit(glyph, (x, 3))
+            shadow = font.render(ch, True, (28, 16, 10))
+            glyph = font.render(ch, True, theme.GOLD_BRIGHT)
+            art.blit(shadow, (x + scale, 4 * scale))
+            art.blit(glyph, (x, 3 * scale))
             x += width + spacing
         return art
 
@@ -82,8 +90,14 @@ class TitleScene(Scene):
         self.embers.draw(surface)
 
         if self.title_art is not None:
-            rect = self.title_art.get_rect(midtop=(WIDTH // 2, 44))
-            surface.blit(self.title_art, rect)
+            scale = getattr(surface, "scale", 1)
+            rect = self.title_art.get_rect(
+                midtop=(WIDTH // 2 * scale, 44 * scale)
+            )
+            if scale > 1:
+                surface.blit_native(self.title_art, rect)
+            else:
+                surface.blit(self.title_art, rect)
 
         theme.draw_text(
             surface,
@@ -138,9 +152,15 @@ class TitleScene(Scene):
             pygame.draw.line(surface, color, (x, y), (x, y + corner * dy), 1)
 
     def _build_backdrop(self) -> pygame.Surface:
-        backdrop = theme.vertical_gradient(
+        backdrop = hd.Surface((WIDTH, HEIGHT))
+        scale = backdrop.scale
+        gradient = theme.vertical_gradient(
             (WIDTH, HEIGHT), theme.NIGHT_TOP, theme.NIGHT_BOTTOM
-        ).copy()
+        )
+        backdrop.blit_native(
+            pygame.transform.scale(gradient, (WIDTH * scale, HEIGHT * scale)),
+            (0, 0),
+        )
 
         rng = random.Random(5)
         for _ in range(46):

@@ -6,6 +6,7 @@
 import pygame
 
 from game import config
+from game.core import hd
 from game.core.assets import load_json
 from game.core.scene_manager import Scene
 from game.ui import theme
@@ -37,6 +38,14 @@ class DeathScene(Scene):
                 MenuItem(self._t("ui.death.to_title", "返回标题"), self.game.return_to_title),
             ]
         )
+        self.backdrop = hd.mark_native(
+            pygame.transform.scale(
+                theme.vertical_gradient(
+                    (WIDTH, HEIGHT), (8, 7, 9), (22, 17, 16)
+                ),
+                (WIDTH * hd.RENDER_SCALE, HEIGHT * hd.RENDER_SCALE),
+            )
+        )
 
     def _t(self, key: str, fallback: str) -> str:
         return self.loc.get(key, fallback)
@@ -55,9 +64,13 @@ class DeathScene(Scene):
 
     # -- 绘制 -----------------------------------------------------------
     def draw(self, surface: pygame.Surface) -> None:
-        surface.blit(
-            theme.vertical_gradient((WIDTH, HEIGHT), (8, 7, 9), (22, 17, 16)), (0, 0)
-        )
+        if getattr(surface, "scale", 1) > 1:
+            surface.blit_native(self.backdrop, (0, 0))
+        else:
+            surface.blit(
+                pygame.transform.smoothscale(self.backdrop, (WIDTH, HEIGHT)),
+                (0, 0),
+            )
         theme.blit_glow(surface, (WIDTH // 2, 60), 96, theme.EMBER, 0.18)
         self.embers.draw(surface, base=(190, 96, 62))
 
