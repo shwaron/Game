@@ -206,6 +206,16 @@ def test_mouse_event_is_converted_to_internal_space(game):
     assert game.internal_event(key) is key
 
 
+def test_window_uses_same_integer_scale_on_both_axes(game):
+    """窗口与 480x270 画布同倍率，铺满无黑边。"""
+    scale_x = config.WINDOW_WIDTH // config.INTERNAL_WIDTH
+    scale_y = config.WINDOW_HEIGHT // config.INTERNAL_HEIGHT
+    assert scale_x == scale_y
+    assert scale_x >= 3
+    assert game._scale == scale_x
+    assert game.window.get_size() == (config.WINDOW_WIDTH, config.WINDOW_HEIGHT)
+
+
 def test_title_menu_click_opens_settings(game):
     from game.scenes.settings import SettingsScene
     from game.scenes.title import TitleScene

@@ -25,11 +25,20 @@ class Game:
         self.running = True
         self.last_weapon_id = None
         self._accumulator = 0.0
-        self._scale = min(
-            config.WINDOW_WIDTH // config.INTERNAL_WIDTH,
-            config.WINDOW_HEIGHT // config.INTERNAL_HEIGHT,
-        )
+        self._scale = 1
+        self._recompute_scale()
         self.scenes.push(TitleScene(self))
+
+    def _recompute_scale(self) -> None:
+        """按实际窗口大小取最大整数倍，保证像素画不变形、不留黑边。"""
+        width, height = self.window.get_size()
+        self._scale = max(
+            1,
+            min(
+                width // config.INTERNAL_WIDTH,
+                height // config.INTERNAL_HEIGHT,
+            ),
+        )
 
     # -- 场景切换 -------------------------------------------------------
     def start_run(self, weapon_id: str | None = None) -> None:
@@ -67,10 +76,11 @@ class Game:
     # -- 输入坐标 -------------------------------------------------------
     def internal_pos(self, pos) -> tuple[int, int]:
         """窗口坐标 → 480x270 内部坐标，供菜单与按钮命中判定。"""
+        width, height = self.window.get_size()
         scaled_w = config.INTERNAL_WIDTH * self._scale
         scaled_h = config.INTERNAL_HEIGHT * self._scale
-        ox = (config.WINDOW_WIDTH - scaled_w) // 2
-        oy = (config.WINDOW_HEIGHT - scaled_h) // 2
+        ox = (width - scaled_w) // 2
+        oy = (height - scaled_h) // 2
         return (
             int((pos[0] - ox) // self._scale),
             int((pos[1] - oy) // self._scale),
@@ -121,11 +131,12 @@ class Game:
             ),
         )
         self.window.fill((0, 0, 0))
+        width, height = self.window.get_size()
         self.window.blit(
             scaled,
             (
-                (config.WINDOW_WIDTH - scaled.get_width()) // 2,
-                (config.WINDOW_HEIGHT - scaled.get_height()) // 2,
+                (width - scaled.get_width()) // 2,
+                (height - scaled.get_height()) // 2,
             ),
         )
         pygame.display.flip()
